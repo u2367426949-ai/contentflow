@@ -1,0 +1,42 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id               String   @id @default(cuid())
+  clerkId          String   @unique
+  email            String?
+  name             String?
+  stripeCustomerId String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  projects         ContentProject[]
+}
+
+model ContentProject {
+  id          String       @id @default(cuid())
+  userId      String
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title       String       @default("Sans titre")
+  originalUrl String?
+  sourceText  String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  generations Generation[]
+}
+
+model Generation {
+  id         String   @id @default(cuid())
+  projectId  String
+  project    ContentProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  platform   String   // linkedin, twitter, instagram
+  content    String?
+  tone       String   @default("professionnel")
+  status     String   @default("pending") // pending, completed, failed
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}

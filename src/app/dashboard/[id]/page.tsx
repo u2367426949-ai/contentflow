@@ -1,0 +1,409 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { useParams, useRouter } from "next/navigation";
+import { useUser } from "@clerk/nextjs";
+import { useAuth } from "@clerk/nextjs";
+import {
+  Loader2,
+  ArrowLeft,
+  Sparkles,
+  ExternalLink,
+  Copy,
+  Check,
+  Trash2,
+  RefreshCw,
+  AlertCircle,
+  FileText,
+} from "lucide-react";
+import Link from "next/link";
+
+const linkedinIcon = (
+  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z" />
+  </svg>
+);
+
+const xIcon = (
+  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+  </svg>
+);
+
+const instagramIcon = (
+  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z" />
+  </svg>
+);
+
+const platformConfig: Record<
+  string,
+  { label: string; icon: React.ReactNode; color: string }
+> = {
+  linkedin: {
+    label: "LinkedIn",
+    icon: linkedinIcon,
+    color: "text-[#0A66C2]",
+  },
+  twitter: {
+    label: "Twitter / X",
+    icon: xIcon,
+    color: "text-sky-400",
+  },
+  instagram: {
+    label: "Instagram",
+    icon: instagramIcon,
+    color: "text-pink-500",
+  },
+};
+
+interface Generation {
+  id: string;
+  platform: string;
+  content: string | null;
+  status: string;
+  tone: string;
+}
+
+interface Project {
+  id: string;
+  title: string;
+  originalUrl: string | null;
+  sourceText: string | null;
+  createdAt: string;
+  generations: Generation[];
+}
+
+export default function ProjectDetailPage() {
+  const params = useParams();
+  const router = useRouter();
+  const { isLoaded, isSignedIn } = useUser();
+  const { getToken } = useAuth();
+  const [project, setProject] = useState<Project | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [generating, setGenerating] = useState(false);
+  const [activeTab, setActiveTab] = useState<string>("linkedin");
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (isLoaded && !isSignedIn) {
+      router.push("/sign-in");
+      return;
+    }
+    if (isLoaded && isSignedIn) {
+      fetchProject();
+    }
+  }, [isLoaded, isSignedIn]);
+
+  async function fetchProject() {
+    try {
+      const token = await getToken();
+      const res = await fetch(`/api/projects/${params.id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error("Projet introuvable");
+      const data = await res.json();
+      setProject(data);
+      // Set active tab to first generation with content
+      const completedGen = data.generations.find(
+        (g: Generation) => g.status === "completed" && g.content
+      );
+      if (completedGen) {
+        setActiveTab(completedGen.platform);
+      } else if (data.generations.length > 0) {
+        setActiveTab(data.generations[0].platform);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erreur");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleGenerate() {
+    setGenerating(true);
+    setError("");
+
+    try {
+      const token = await getToken();
+      const res = await fetch("/api/generate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ projectId: params.id }),
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || "Erreur lors de la génération");
+      }
+
+      await fetchProject();
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Une erreur est survenue";
+      setError(message);
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  async function handleDelete() {
+    if (!confirm("Supprimer ce projet ?")) return;
+    try {
+      const token = await getToken();
+      await fetch(`/api/projects/${params.id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      router.push("/dashboard");
+    } catch (err) {
+      console.error("Delete failed", err);
+    }
+  }
+
+  function handleCopy(text: string, id: string) {
+    navigator.clipboard.writeText(text);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2000);
+  }
+
+  if (!isLoaded || loading) {
+    return (
+      <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-accent animate-spin" />
+      </div>
+    );
+  }
+
+  if (error && !project) {
+    return (
+      <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center">
+        <div className="text-center">
+          <AlertCircle className="w-12 h-12 text-error mx-auto mb-4" />
+          <p className="text-foreground font-medium mb-2">{error}</p>
+          <Link
+            href="/dashboard"
+            className="text-accent hover:text-accent-hover text-sm"
+          >
+            Retour au dashboard
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  if (!project) return null;
+
+  const hasGeneration = project.generations.length > 0;
+  const activeGeneration = project.generations.find(
+    (g) => g.platform === activeTab
+  );
+  const hasAnyCompleted = project.generations.some(
+    (g) => g.status === "completed"
+  );
+
+  return (
+    <div className="min-h-[calc(100vh-4rem)]">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        {/* Back + actions */}
+        <div className="flex items-center justify-between mb-8">
+          <Link
+            href="/dashboard"
+            className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span className="text-sm">Retour</span>
+          </Link>
+          <button
+            onClick={handleDelete}
+            className="text-muted-foreground hover:text-error transition-colors p-2"
+            title="Supprimer le projet"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Project Info */}
+        <div className="mb-8">
+          <h1 className="text-2xl font-bold text-foreground mb-2">
+            {project.title}
+          </h1>
+          {project.originalUrl && (
+            <a
+              href={project.originalUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-accent transition-colors"
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
+              {project.originalUrl}
+            </a>
+          )}
+          <p className="text-xs text-muted-foreground mt-2">
+            Créé le{" "}
+            {new Date(project.createdAt).toLocaleDateString("fr-FR", {
+              day: "numeric",
+              month: "long",
+              year: "numeric",
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
+          </p>
+        </div>
+
+        {/* Generate Button */}
+        <div className="mb-10">
+          <button
+            onClick={handleGenerate}
+            disabled={generating}
+            className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-accent text-accent-foreground font-medium hover:bg-accent-hover transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {generating ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Génération en cours...
+              </>
+            ) : (
+              <>
+                <Sparkles className="w-4 h-4" />
+                {hasAnyCompleted
+                  ? "Régénérer les posts"
+                  : "Générer les posts"}
+              </>
+            )}
+          </button>
+          {error && (
+            <p className="mt-3 text-sm text-error">{error}</p>
+          )}
+        </div>
+
+        {/* No generation state */}
+        {!hasGeneration && !generating && (
+          <div className="text-center py-16 bg-card rounded-2xl border border-border">
+            <div className="w-16 h-16 rounded-2xl bg-accent/10 flex items-center justify-center mx-auto mb-5">
+              <FileText className="w-8 h-8 text-accent" />
+            </div>
+            <p className="text-foreground font-medium mb-2">
+              Aucun post généré
+            </p>
+            <p className="text-sm text-muted-foreground max-w-md mx-auto">
+              Cliquez sur &quot;Générer les posts&quot; pour que l&apos;IA
+              analyse le contenu et crée vos posts LinkedIn, Twitter et
+              Instagram.
+            </p>
+          </div>
+        )}
+
+        {/* Platform Tabs */}
+        {hasGeneration && (
+          <div className="bg-card border border-border rounded-2xl overflow-hidden">
+            {/* Tabs */}
+            <div className="flex border-b border-border">
+              {["linkedin", "twitter", "instagram"].map((platform) => {
+                const gen = project.generations.find(
+                  (g) => g.platform === platform
+                );
+                const config = platformConfig[platform];
+                const isActive = activeTab === platform;
+                return (
+                  <button
+                    key={platform}
+                    onClick={() => setActiveTab(platform)}
+                    className={`flex-1 flex items-center justify-center gap-2 px-4 py-4 text-sm font-medium transition-all ${
+                      isActive
+                        ? "text-accent border-b-2 border-accent bg-accent/5"
+                        : "text-muted-foreground hover:text-foreground hover:bg-surface-hover"
+                    }`}
+                  >
+                    <span className={config.color}>{config.icon}</span>
+                    <span>{config.label}</span>
+                    {gen && (
+                      <span
+                        className={`w-1.5 h-1.5 rounded-full ${
+                          gen.status === "completed"
+                            ? "bg-success"
+                            : gen.status === "failed"
+                              ? "bg-error"
+                              : "bg-warning animate-pulse"
+                        }`}
+                      />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Content */}
+            <div className="p-6">
+              {activeGeneration ? (
+                <>
+                  {activeGeneration.status === "pending" && (
+                    <div className="flex items-center justify-center py-12">
+                      <div className="text-center">
+                        <RefreshCw className="w-8 h-8 text-accent animate-spin mx-auto mb-3" />
+                        <p className="text-muted-foreground">
+                          Génération en cours...
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {activeGeneration.status === "failed" && (
+                    <div className="flex items-center justify-center py-12">
+                      <div className="text-center">
+                        <AlertCircle className="w-8 h-8 text-error mx-auto mb-3" />
+                        <p className="text-muted-foreground">
+                          La génération a échoué
+                        </p>
+                        <button
+                          onClick={handleGenerate}
+                          className="mt-4 text-sm text-accent hover:text-accent-hover"
+                        >
+                          Réessayer
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {activeGeneration.status === "completed" &&
+                    activeGeneration.content && (
+                      <div className="relative group">
+                        <div className="prose prose-invert max-w-none whitespace-pre-wrap text-foreground leading-relaxed">
+                          {activeGeneration.content}
+                        </div>
+                        <button
+                          onClick={() =>
+                            handleCopy(
+                              activeGeneration.content!,
+                              activeGeneration.id
+                            )
+                          }
+                          className="absolute top-0 right-0 p-2 rounded-lg bg-surface border border-border text-muted-foreground hover:text-foreground hover:bg-surface-hover transition-all opacity-0 group-hover:opacity-100"
+                          title="Copier"
+                        >
+                          {copiedId === activeGeneration.id ? (
+                            <Check className="w-4 h-4 text-success" />
+                          ) : (
+                            <Copy className="w-4 h-4" />
+                          )}
+                        </button>
+                      </div>
+                    )}
+                </>
+              ) : (
+                <div className="text-center py-12">
+                  <p className="text-muted-foreground">
+                    Aucune génération pour cette plateforme
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
