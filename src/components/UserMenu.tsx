@@ -143,7 +143,7 @@ export function UserMenu() {
                 <>
                   <Crown className="w-3.5 h-3.5" />
                   Plan {plan.name} · Générations illimitées
-                  {plan.brandVoices > 0 && ` · ${plan.brandVoices} voix de marque`}
+                  {plan.brandVoices > 0 && ` · ${plan.brandVoices} styles d'écriture`}
                 </>
               ) : (
                 <>

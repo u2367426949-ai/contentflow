@@ -103,7 +103,7 @@ const PRICING_DETAILS: Record<Plan, { cta: string; href: string; featured?: bool
     href: "/upgrade",
     features: [
       "Générations illimitées",
-      "1 voix de marque clonée",
+      "1 style d'écriture cloné",
       "Auto-publication LinkedIn",
       "Programmation de posts",
     ],
@@ -115,7 +115,7 @@ const PRICING_DETAILS: Record<Plan, { cta: string; href: string; featured?: bool
     features: [
       "Tout Creator, plus :",
       "Multi-plateforme + Analytics",
-      "3 voix de marque",
+      "3 styles d'écriture",
     ],
   },
   agency: {
@@ -123,7 +123,7 @@ const PRICING_DETAILS: Record<Plan, { cta: string; href: string; featured?: bool
     href: "/upgrade",
     features: [
       "Tout Pro, plus :",
-      "10 voix de marque",
+      "10 styles d'écriture",
       "Multi-clients & white label",
     ],
   },

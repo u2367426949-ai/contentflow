@@ -18,7 +18,7 @@ import {
   Calendar,
   Lock,
   Crown,
-  Mic,
+  Fingerprint,
 } from "lucide-react";
 import Link from "next/link";
 import { ScheduleModal } from "@/components/ScheduleModal";
@@ -327,8 +327,8 @@ export default function ProjectDetailPage() {
           {/* Brand voice selector */}
           <div className="flex items-center gap-3 mb-4">
             <span className="text-xs text-muted font-medium inline-flex items-center gap-1.5">
-              <Mic className="w-3.5 h-3.5" />
-              Voix :
+              <Fingerprint className="w-3.5 h-3.5" />
+              Style :
             </span>
             {voices.length > 0 ? (
               <div className="flex flex-wrap gap-1.5">
@@ -353,7 +353,7 @@ export default function ProjectDetailPage() {
                 href="/dashboard/brand-voices"
                 className="text-xs text-accent hover:text-accent-hover transition-colors inline-flex items-center gap-1"
               >
-                <Mic className="w-3 h-3" />
+                <Fingerprint className="w-3 h-3" />
                 Clonez votre style
               </Link>
             )}
@@ -361,7 +361,7 @@ export default function ProjectDetailPage() {
 
           {brandVoiceId && (
             <p className="text-xs text-muted-foreground mb-4 -mt-1">
-              Les posts seront écrits dans votre voix clonée (le ton ci-dessus est ignoré).
+              Les posts seront écrits dans votre style cloné (le ton ci-dessus est ignoré).
             </p>
           )}
 

@@ -7,7 +7,7 @@ import { useUser } from "@clerk/nextjs";
 const ALL_LINKS = [
   { href: "/", label: "Accueil", requireGuest: true },
   { href: "/dashboard", label: "Dashboard", requireAuth: true },
-  { href: "/dashboard/brand-voices", label: "Voix", requireAuth: true },
+  { href: "/dashboard/brand-voices", label: "Style", requireAuth: true },
   { href: "/dashboard/schedule", label: "Planning", requireAuth: true },
 ];
 

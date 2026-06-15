@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import { useUser, useAuth } from "@clerk/nextjs";
 import {
   Loader2,
-  Mic,
+  Fingerprint,
+  PenLine,
   Plus,
   Trash2,
   Sparkles,
@@ -95,7 +96,7 @@ export default function BrandVoicesPage() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ name: name.trim() || "Ma voix", samples: blocks }),
+        body: JSON.stringify({ name: name.trim() || "Mon style", samples: blocks }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || "Erreur");
@@ -111,7 +112,7 @@ export default function BrandVoicesPage() {
   }
 
   async function handleDelete(id: string) {
-    if (!confirm("Supprimer cette voix ?")) return;
+    if (!confirm("Supprimer ce style ?")) return;
     const token = await getToken();
     await fetch(`/api/brand-voices/${id}`, {
       method: "DELETE",
@@ -144,12 +145,12 @@ export default function BrandVoicesPage() {
         <div className="flex items-start justify-between gap-4 mb-8">
           <div>
             <h1 className="text-3xl font-bold text-foreground mb-2 tracking-tight flex items-center gap-2.5">
-              <Mic className="w-7 h-7 text-accent" />
-              Brand Voice
+              <Fingerprint className="w-7 h-7 text-accent" />
+              Style d&apos;écriture
             </h1>
             <p className="text-muted max-w-xl">
               Collez vos meilleurs posts. L&apos;IA clone votre style — pas un ton
-              générique — et écrit vos prochains posts dans votre voix.
+              générique — et écrit vos prochains posts dans votre style.
             </p>
           </div>
           {!locked && !atLimit && !showForm && (
@@ -158,7 +159,7 @@ export default function BrandVoicesPage() {
               className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-accent text-white font-medium text-sm hover:bg-accent-hover transition-all whitespace-nowrap shadow-sm shadow-accent/20"
             >
               <Plus className="w-4 h-4" />
-              Nouvelle voix
+              Nouveau style
             </button>
           )}
         </div>
@@ -170,7 +171,7 @@ export default function BrandVoicesPage() {
               <Lock className="w-7 h-7 text-accent" />
             </div>
             <p className="text-foreground font-medium mb-2">
-              Le clonage de voix est une fonctionnalité payante
+              Le clonage de style est une fonctionnalité payante
             </p>
             <p className="text-sm text-muted max-w-sm mx-auto mb-6">
               Passez à Creator (29€/mois) pour cloner votre style et publier des
@@ -193,7 +194,7 @@ export default function BrandVoicesPage() {
             className="mb-8 p-6 bg-card border border-border rounded-2xl"
           >
             <label className="block text-xs font-medium text-muted uppercase tracking-wider mb-2">
-              Nom de la voix
+              Nom du style
             </label>
             <input
               value={name}
@@ -230,7 +231,7 @@ export default function BrandVoicesPage() {
                 ) : (
                   <>
                     <Sparkles className="w-4 h-4" />
-                    Cloner ma voix
+                    Cloner mon style
                   </>
                 )}
               </button>
@@ -252,7 +253,7 @@ export default function BrandVoicesPage() {
         {!locked && atLimit && !showForm && (
           <div className="mb-6 p-4 rounded-xl bg-accent/5 border border-accent/20 text-sm text-muted flex items-center gap-2">
             <Crown className="w-4 h-4 text-accent shrink-0" />
-            Vous utilisez vos {limit} voix disponibles.{" "}
+            Vous utilisez vos {limit} styles disponibles.{" "}
             <Link href="/upgrade" className="text-accent hover:text-accent-hover font-medium">
               Passez à un plan supérieur
             </Link>{" "}
@@ -266,13 +267,13 @@ export default function BrandVoicesPage() {
             {voices.length === 0 && !showForm ? (
               <div className="text-center py-16 bg-card rounded-2xl border border-border">
                 <div className="w-14 h-14 rounded-2xl bg-accent/10 flex items-center justify-center mx-auto mb-5">
-                  <Mic className="w-7 h-7 text-accent" />
+                  <Fingerprint className="w-7 h-7 text-accent" />
                 </div>
                 <p className="text-foreground font-medium mb-2">
-                  Aucune voix clonée
+                  Aucun style cloné
                 </p>
                 <p className="text-sm text-muted max-w-sm mx-auto">
-                  Créez votre première voix pour générer des posts dans votre
+                  Créez votre premier style pour générer des posts dans votre
                   style exact.
                 </p>
               </div>
@@ -287,7 +288,7 @@ export default function BrandVoicesPage() {
                     <div className="flex items-start justify-between gap-4 mb-3">
                       <div className="flex items-center gap-2.5">
                         <div className="w-9 h-9 rounded-xl bg-accent/10 flex items-center justify-center">
-                          <Mic className="w-4.5 h-4.5 text-accent" />
+                          <PenLine className="w-4.5 h-4.5 text-accent" />
                         </div>
                         <div>
                           <h3 className="text-foreground font-semibold">

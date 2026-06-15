@@ -10,7 +10,7 @@ import {
   ArrowLeft,
   Crown,
   Loader2,
-  Mic,
+  Fingerprint,
 } from "lucide-react";
 import { PLANS, type PaidPlan } from "@/lib/plans";
 
@@ -27,7 +27,7 @@ const TIERS: Tier[] = [
     tagline: "Pour créateurs qui publient sur LinkedIn",
     features: [
       "Générations illimitées",
-      "1 voix de marque (clonage de style)",
+      "1 style d'écriture (clonage de style)",
       "Auto-publication LinkedIn",
       "Programmation de posts",
       "Sources multiples : URL, YouTube, RSS, texte",
@@ -40,7 +40,7 @@ const TIERS: Tier[] = [
     features: [
       "Tout Creator, plus :",
       "Multi-plateforme : LinkedIn, X, Instagram",
-      "3 voix de marque",
+      "3 styles d'écriture",
       "Analytics & boucle de performance",
       "Support prioritaire",
     ],
@@ -50,7 +50,7 @@ const TIERS: Tier[] = [
     tagline: "Pour agences et multi-clients",
     features: [
       "Tout Pro, plus :",
-      "10 voix de marque",
+      "10 styles d'écriture",
       "Gestion multi-clients",
       "White label",
       "Support dédié",
@@ -119,8 +119,8 @@ export default function UpgradePage() {
         {/* Header */}
         <div className="text-center mb-14">
           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-accent/10 border border-accent/20 text-accent text-sm mb-6">
-            <Mic className="w-3.5 h-3.5" />
-            <span>Le cerveau éditorial qui apprend votre voix</span>
+            <Fingerprint className="w-3.5 h-3.5" />
+            <span>Le cerveau éditorial qui apprend votre style</span>
           </div>
           <h1 className="text-3xl md:text-5xl font-bold text-foreground mb-4 tracking-tight">
             Choisissez votre plan
@@ -212,7 +212,7 @@ export default function UpgradePage() {
           <div className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-surface border border-border/50 text-sm text-muted">
             <Sparkles className="w-4 h-4 text-accent" />
             Plan Free : {PLANS.free.genQuota} générations/mois, publication
-            manuelle, sans voix de marque.
+            manuelle, sans style d&apos;écriture.
           </div>
         </div>
 
@@ -221,7 +221,7 @@ export default function UpgradePage() {
           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-accent/5 text-accent text-xs font-medium">
             <Crown className="w-3.5 h-3.5" />
             Taplio et AuthoredUp sont à 65€/mois, LinkedIn uniquement. Creator
-            démarre à 29€, multi-plateforme + clonage de voix.
+            démarre à 29€, multi-plateforme + clonage de style.
           </div>
         </div>
       </div>
