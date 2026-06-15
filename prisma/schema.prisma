@@ -29,6 +29,7 @@ model SocialAccount {
   user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   platform        String
   accessTokenEnc  String
+  refreshTokenEnc String?
   expiresAt       DateTime?
   externalId      String
   externalName    String?

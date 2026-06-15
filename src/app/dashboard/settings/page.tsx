@@ -16,7 +16,7 @@ import {
 import Link from "next/link";
 import { getPlan } from "@/lib/plans";
 
-interface LinkedInStatus {
+interface ConnectionStatus {
   connected: boolean;
   name?: string;
   expiresAt?: string;
@@ -28,9 +28,11 @@ export default function SettingsPage() {
   const { getToken } = useAuth();
 
   const [plan, setPlan] = useState<string>("free");
-  const [linkedin, setLinkedin] = useState<LinkedInStatus>({ connected: false });
+  const [linkedin, setLinkedin] = useState<ConnectionStatus>({ connected: false });
+  const [twitter, setTwitter] = useState<ConnectionStatus>({ connected: false });
   const [loading, setLoading] = useState(true);
   const [disconnecting, setDisconnecting] = useState(false);
+  const [disconnectingTwitter, setDisconnectingTwitter] = useState(false);
   const [notice, setNotice] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
   const autoPublish = getPlan(plan).autoPublish;
@@ -45,6 +47,7 @@ export default function SettingsPage() {
     }
     const params = new URLSearchParams(window.location.search);
     const linkedinParam = params.get("linkedin");
+    const twitterParam = params.get("twitter");
     if (linkedinParam === "connected") {
       setNotice({ type: "success", message: "Compte LinkedIn connecté avec succès." });
     } else if (linkedinParam === "error") {
@@ -52,8 +55,15 @@ export default function SettingsPage() {
         type: "error",
         message: params.get("message") || "La connexion à LinkedIn a échoué.",
       });
+    } else if (twitterParam === "connected") {
+      setNotice({ type: "success", message: "Compte X connecté avec succès." });
+    } else if (twitterParam === "error") {
+      setNotice({
+        type: "error",
+        message: params.get("message") || "La connexion à X a échoué.",
+      });
     }
-    if (linkedinParam) {
+    if (linkedinParam || twitterParam) {
       window.history.replaceState({}, "", "/dashboard/settings");
     }
   }, [isLoaded, isSignedIn]);
@@ -67,7 +77,11 @@ export default function SettingsPage() {
         fetch("/api/social-accounts", { headers }),
       ]);
       if (uRes.ok) setPlan((await uRes.json()).plan || "free");
-      if (sRes.ok) setLinkedin((await sRes.json()).linkedin || { connected: false });
+      if (sRes.ok) {
+        const data = await sRes.json();
+        setLinkedin(data.linkedin || { connected: false });
+        setTwitter(data.twitter || { connected: false });
+      }
     } catch {
       /* silent */
     } finally {
@@ -87,6 +101,21 @@ export default function SettingsPage() {
       setLinkedin({ connected: false });
     } finally {
       setDisconnecting(false);
+    }
+  }
+
+  async function handleDisconnectTwitter() {
+    if (!confirm("Déconnecter votre compte X ?")) return;
+    setDisconnectingTwitter(true);
+    try {
+      const token = await getToken();
+      await fetch("/api/auth/twitter/disconnect", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setTwitter({ connected: false });
+    } finally {
+      setDisconnectingTwitter(false);
     }
   }
 
@@ -195,6 +224,59 @@ export default function SettingsPage() {
             {linkedin.connected && (
               <p className="mt-4 pt-4 border-t border-border/50 text-xs text-muted-foreground leading-relaxed">
                 Vos posts LinkedIn programmés seront publiés automatiquement à
+                l&apos;heure prévue. Si votre session expire, reconnectez votre
+                compte ici.
+              </p>
+            )}
+          </div>
+        )}
+
+        {autoPublish && (
+          <div className="mt-4 p-6 bg-card border border-border/50 rounded-2xl">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-xl bg-sky-400/10 flex items-center justify-center">
+                  <span className="text-sky-400 font-bold text-lg">X</span>
+                </div>
+                <div>
+                  <h3 className="text-foreground font-semibold">Twitter / X</h3>
+                  {twitter.connected ? (
+                    <p className="text-xs text-success flex items-center gap-1 mt-0.5">
+                      <PlugZap className="w-3 h-3" />
+                      Connecté{twitter.name ? ` — ${twitter.name}` : ""}
+                    </p>
+                  ) : (
+                    <p className="text-xs text-muted-foreground mt-0.5">Non connecté</p>
+                  )}
+                </div>
+              </div>
+              {twitter.connected ? (
+                <button
+                  onClick={handleDisconnectTwitter}
+                  disabled={disconnectingTwitter}
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-surface border border-border text-foreground text-sm font-medium hover:bg-surface-hover transition-all disabled:opacity-50"
+                >
+                  {disconnectingTwitter ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Unplug className="w-4 h-4" />
+                  )}
+                  Déconnecter
+                </button>
+              ) : (
+                <a
+                  href="/api/auth/twitter/start"
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-accent text-white font-medium text-sm hover:bg-accent-hover transition-all whitespace-nowrap shadow-sm shadow-accent/20"
+                >
+                  <PlugZap className="w-4 h-4" />
+                  Connecter X
+                </a>
+              )}
+            </div>
+
+            {twitter.connected && (
+              <p className="mt-4 pt-4 border-t border-border/50 text-xs text-muted-foreground leading-relaxed">
+                Vos posts X programmés seront publiés automatiquement à
                 l&apos;heure prévue. Si votre session expire, reconnectez votre
                 compte ici.
               </p>

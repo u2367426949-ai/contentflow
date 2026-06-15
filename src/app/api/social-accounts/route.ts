@@ -7,19 +7,26 @@ export async function GET() {
   if (!clerkId) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
 
   const user = await prisma.user.findUnique({ where: { clerkId } });
-  if (!user) return NextResponse.json({ linkedin: { connected: false } });
+  if (!user) {
+    return NextResponse.json({
+      linkedin: { connected: false },
+      twitter: { connected: false },
+    });
+  }
 
-  const account = await prisma.socialAccount.findUnique({
-    where: { userId_platform: { userId: user.id, platform: "linkedin" } },
+  const accounts = await prisma.socialAccount.findMany({
+    where: { userId: user.id, platform: { in: ["linkedin", "twitter"] } },
   });
 
-  if (!account) return NextResponse.json({ linkedin: { connected: false } });
+  const linkedinAccount = accounts.find((a) => a.platform === "linkedin");
+  const twitterAccount = accounts.find((a) => a.platform === "twitter");
 
   return NextResponse.json({
-    linkedin: {
-      connected: true,
-      name: account.externalName,
-      expiresAt: account.expiresAt,
-    },
+    linkedin: linkedinAccount
+      ? { connected: true, name: linkedinAccount.externalName, expiresAt: linkedinAccount.expiresAt }
+      : { connected: false },
+    twitter: twitterAccount
+      ? { connected: true, name: twitterAccount.externalName, expiresAt: twitterAccount.expiresAt }
+      : { connected: false },
   });
 }
