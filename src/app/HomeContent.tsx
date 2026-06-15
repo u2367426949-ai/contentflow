@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { DemoSection } from "@/components/DemoSection";
+import { PLANS, type Plan } from "@/lib/plans";
 import {
   Sparkles,
   ArrowRight,
@@ -85,38 +86,48 @@ const STEPS = [
   },
 ];
 
-const PRICING = [
-  {
-    name: "Gratuit",
-    price: "0 €",
-    period: "",
+const PRICING_ORDER: Plan[] = ["free", "creator", "pro", "agency"];
+
+const PRICING_DETAILS: Record<Plan, { cta: string; href: string; featured?: boolean; features: string[] }> = {
+  free: {
     cta: "Commencer",
     href: "/dashboard",
-    featured: false,
     features: [
-      "3 générations par mois",
+      "5 générations par mois",
       "LinkedIn, Twitter, Instagram",
-      "Extraction d'articles",
-      "Copie en un clic",
+      "Extraction d'articles, YouTube, RSS",
     ],
   },
-  {
-    name: "Pro",
-    price: "9,99 €",
-    period: "/mois",
-    cta: "Essayer gratuitement",
-    href: "/sign-up",
-    featured: true,
+  creator: {
+    cta: "Essayer Creator",
+    href: "/upgrade",
     features: [
       "Générations illimitées",
-      "Tous les formats sociaux",
-      "Personnalisation du ton",
-      "Historique illimité",
-      "Support prioritaire",
-      "Sans publicité",
+      "1 voix de marque clonée",
+      "Auto-publication LinkedIn",
+      "Programmation de posts",
     ],
   },
-];
+  pro: {
+    cta: "Essayer Pro",
+    href: "/upgrade",
+    featured: true,
+    features: [
+      "Tout Creator, plus :",
+      "Multi-plateforme + Analytics",
+      "3 voix de marque",
+    ],
+  },
+  agency: {
+    cta: "Essayer Agency",
+    href: "/upgrade",
+    features: [
+      "Tout Pro, plus :",
+      "10 voix de marque",
+      "Multi-clients & white label",
+    ],
+  },
+};
 
 export default function HomeContent() {
   return (
@@ -242,58 +253,70 @@ export default function HomeContent() {
 
       {/* ─── Pricing ─── */}
       <section className="py-20 md:py-28 px-4 border-t border-border/50">
-        <div className="max-w-4xl mx-auto">
+        <div className="max-w-6xl mx-auto">
           <div className="text-center mb-16">
             <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4">
               Des tarifs simples
             </h2>
             <p className="text-muted max-w-xl mx-auto">
-              Commencez gratuitement, passez en Pro quand vous en avez besoin.
+              Commencez gratuitement, évoluez vers Creator, Pro ou Agency selon
+              votre rythme de publication.
             </p>
           </div>
 
-          <div className="grid md:grid-cols-2 gap-6 max-w-2xl mx-auto">
-            {PRICING.map((plan) => (
-              <div
-                key={plan.name}
-                className={`relative p-8 rounded-2xl border transition-all ${
-                  plan.featured
-                    ? "bg-card border-accent/30 shadow-lg shadow-accent/5"
-                    : "bg-card border-border hover:border-border-light"
-                }`}
-              >
-                {plan.featured && (
-                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-accent text-white text-xs font-medium flex items-center gap-1">
-                    <Star className="w-3 h-3" /> Populaire
-                  </div>
-                )}
-                <div className="text-sm font-medium text-muted mb-1">{plan.name}</div>
-                <div className="flex items-baseline gap-1 mb-6">
-                  <span className="text-4xl font-bold text-foreground">{plan.price}</span>
-                  {plan.period && (
-                    <span className="text-sm text-muted">{plan.period}</span>
-                  )}
-                </div>
-                <ul className="space-y-3 mb-8">
-                  {plan.features.map((f) => (
-                    <li key={f} className="flex items-start gap-2.5 text-sm text-muted">
-                      <CheckCircle2 className="w-4 h-4 text-success shrink-0 mt-0.5" />
-                      {f}
-                    </li>
-                  ))}
-                </ul>
-                <Link
-                  href={plan.href}
-                  className={`block w-full text-center py-3 rounded-xl font-medium text-sm transition-all ${
-                    plan.featured
-                      ? "bg-accent text-white hover:bg-accent-hover shadow-md shadow-accent/20"
-                      : "bg-surface border border-border text-foreground hover:bg-surface-hover"
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6 max-w-5xl mx-auto">
+            {PRICING_ORDER.map((id) => {
+              const plan = PLANS[id];
+              const details = PRICING_DETAILS[id];
+              return (
+                <div
+                  key={id}
+                  className={`relative p-8 rounded-2xl border transition-all ${
+                    details.featured
+                      ? "bg-card border-accent/30 shadow-lg shadow-accent/5"
+                      : "bg-card border-border hover:border-border-light"
                   }`}
                 >
-                  {plan.cta}
-                </Link>
-              </div>
-            ))}
+                  {details.featured && (
+                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-accent text-white text-xs font-medium flex items-center gap-1">
+                      <Star className="w-3 h-3" /> Recommandé
+                    </div>
+                  )}
+                  <div className="text-sm font-medium text-muted mb-1">{plan.name}</div>
+                  <div className="flex items-baseline gap-1 mb-6">
+                    <span className="text-4xl font-bold text-foreground">{plan.price} €</span>
+                    {plan.price > 0 && (
+                      <span className="text-sm text-muted">/mois</span>
+                    )}
+                  </div>
+                  <ul className="space-y-3 mb-8">
+                    {details.features.map((f) => (
+                      <li
+                        key={f}
+                        className={`flex items-start gap-2.5 text-sm ${
+                          f.endsWith(":") ? "text-foreground font-medium" : "text-muted"
+                        }`}
+                      >
+                        {!f.endsWith(":") && (
+                          <CheckCircle2 className="w-4 h-4 text-success shrink-0 mt-0.5" />
+                        )}
+                        {f}
+                      </li>
+                    ))}
+                  </ul>
+                  <Link
+                    href={details.href}
+                    className={`block w-full text-center py-3 rounded-xl font-medium text-sm transition-all ${
+                      details.featured
+                        ? "bg-accent text-white hover:bg-accent-hover shadow-md shadow-accent/20"
+                        : "bg-surface border border-border text-foreground hover:bg-surface-hover"
+                    }`}
+                  >
+                    {details.cta}
+                  </Link>
+                </div>
+              );
+            })}
           </div>
         </div>
       </section>
