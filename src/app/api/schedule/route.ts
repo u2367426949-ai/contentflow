@@ -22,11 +22,9 @@ export async function POST(req: NextRequest) {
   const clerkId = await getUserId();
   if (!clerkId) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
 
-  const user = await prisma.user.upsert({
-    where: { clerkId },
-    create: { clerkId },
-    update: {},
-  });
+  const user =
+    (await prisma.user.findUnique({ where: { clerkId } })) ??
+    (await prisma.user.create({ data: { clerkId } }));
 
   // Scheduling is available on all paid plans
   if (!getPlan(user.plan).autoPublish) {

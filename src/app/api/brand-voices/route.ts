@@ -30,11 +30,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
   }
 
-  const user = await prisma.user.upsert({
-    where: { clerkId },
-    create: { clerkId },
-    update: {},
-  });
+  const user =
+    (await prisma.user.findUnique({ where: { clerkId } })) ??
+    (await prisma.user.create({ data: { clerkId } }));
 
   const plan = getPlan(user.plan);
 

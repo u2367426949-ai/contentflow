@@ -39,18 +39,17 @@ export async function POST(req: NextRequest) {
         const plan = resolvePlanFromMetadata(session.metadata?.plan);
 
         // Ensure user exists, then update
-        await prisma.user.upsert({
-          where: { clerkId },
-          create: {
-            clerkId,
-            plan,
-            stripeCustomerId: (session.customer as string) || "",
-          },
-          update: {
-            plan,
-            stripeCustomerId: (session.customer as string) || undefined,
-          },
-        });
+        const existingUser = await prisma.user.findUnique({ where: { clerkId } });
+        if (existingUser) {
+          await prisma.user.update({
+            where: { clerkId },
+            data: { plan, stripeCustomerId: (session.customer as string) || undefined },
+          });
+        } else {
+          await prisma.user.create({
+            data: { clerkId, plan, stripeCustomerId: (session.customer as string) || "" },
+          });
+        }
 
         activated = true;
         sessionInfo = {

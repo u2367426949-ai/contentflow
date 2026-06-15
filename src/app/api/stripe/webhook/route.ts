@@ -34,18 +34,17 @@ export async function POST(req: NextRequest) {
 
         if (clerkId) {
           const customerId = session.customer as string;
-          await prisma.user.upsert({
-            where: { clerkId },
-            create: {
-              clerkId,
-              plan,
-              stripeCustomerId: customerId || "",
-            },
-            update: {
-              plan,
-              stripeCustomerId: customerId || undefined,
-            },
-          });
+          const existingUser = await prisma.user.findUnique({ where: { clerkId } });
+          if (existingUser) {
+            await prisma.user.update({
+              where: { clerkId },
+              data: { plan, stripeCustomerId: customerId || undefined },
+            });
+          } else {
+            await prisma.user.create({
+              data: { clerkId, plan, stripeCustomerId: customerId || "" },
+            });
+          }
           console.log(`✅ Plan upgraded to ${plan} for clerkId: ${clerkId}`);
         }
         break;
