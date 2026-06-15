@@ -49,7 +49,6 @@ export async function POST(req: NextRequest) {
       tone: tone || "professionnel",
       scheduledAt: new Date(scheduledAt),
     },
-    include: { project: { select: { title: true } } },
   });
 
   return NextResponse.json(post, { status: 201 });

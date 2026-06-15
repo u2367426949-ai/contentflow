@@ -188,11 +188,16 @@ export default function ProjectDetailPage() {
   async function handleSchedule(date: Date) {
     const token = await getToken();
     const projectId = params.id as string;
-    await fetch("/api/schedule", {
+    const res = await fetch("/api/schedule", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: "Bearer " + (token || "") },
       body: JSON.stringify({ projectId, platform: scheduleModal.platform, content: scheduleModal.content, tone: tone, scheduledAt: date.toISOString() }),
     });
+    if (!res.ok) {
+      const data = await res.json().catch(() => null);
+      alert(data?.error || "Erreur lors de la programmation.");
+      return;
+    }
     setScheduleModal({ open: false, platform: "", content: "" });
   }
 
