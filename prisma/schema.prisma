@@ -20,6 +20,22 @@ model User {
   projects         ContentProject[]
   scheduledPosts   ScheduledPost[]
   brandVoices      BrandVoice[]
+  socialAccounts   SocialAccount[]
+}
+
+model SocialAccount {
+  id              String    @id @default(cuid())
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  platform        String
+  accessTokenEnc  String
+  expiresAt       DateTime?
+  externalId      String
+  externalName    String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([userId, platform])
 }
 
 model BrandVoice {
@@ -79,6 +95,8 @@ model ScheduledPost {
   tone        String         @default("professionnel")
   scheduledAt DateTime
   status      String         @default("pending")
+  publishedAt DateTime?
+  error       String?
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
 }

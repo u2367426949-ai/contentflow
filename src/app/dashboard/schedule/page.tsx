@@ -14,6 +14,9 @@ import {
   Copy,
   Check,
   Sparkles,
+  CheckCircle2,
+  XCircle,
+  AlertTriangle,
 } from "lucide-react";
 import { getPlan } from "@/lib/plans";
 
@@ -24,6 +27,8 @@ interface ScheduledPost {
   tone: string;
   scheduledAt: string;
   status: string;
+  publishedAt?: string | null;
+  error?: string | null;
   projectId?: string | null;
 }
 
@@ -54,6 +59,7 @@ export default function SchedulePage() {
   const [loading, setLoading] = useState(true);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [plan, setPlan] = useState<string | null>(null);
+  const [linkedinConnected, setLinkedinConnected] = useState(true);
 
   useEffect(() => {
     if (isLoaded && !isSignedIn) router.push("/sign-in");
@@ -80,8 +86,13 @@ export default function SchedulePage() {
   async function fetchPosts() {
     try {
       const token = await getToken();
-      const res = await fetch("/api/schedule", { headers: { Authorization: `Bearer ${token}` } });
-      if (res.ok) setPosts(await res.json());
+      const headers = { Authorization: `Bearer ${token}` };
+      const [postsRes, socialRes] = await Promise.all([
+        fetch("/api/schedule", { headers }),
+        fetch("/api/social-accounts", { headers }),
+      ]);
+      if (postsRes.ok) setPosts(await postsRes.json());
+      if (socialRes.ok) setLinkedinConnected(Boolean((await socialRes.json()).linkedin?.connected));
     } catch {}
     setLoading(false);
   }
@@ -152,6 +163,18 @@ export default function SchedulePage() {
           </Link>
         </div>
 
+        {/* LinkedIn connection hint */}
+        {!linkedinConnected && posts.some((p) => p.platform === "linkedin" && p.status === "pending") && (
+          <div className="mb-6 p-4 rounded-xl bg-accent/5 border border-accent/20 text-sm text-muted flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-accent shrink-0" />
+            Connectez votre compte LinkedIn pour que vos posts soient publiés
+            automatiquement.{" "}
+            <Link href="/dashboard/settings" className="text-accent hover:text-accent-hover font-medium">
+              Connecter LinkedIn
+            </Link>
+          </div>
+        )}
+
         {/* Empty state */}
         {posts.length === 0 ? (
           <div className="text-center py-20 bg-card rounded-2xl border border-border">
@@ -193,6 +216,7 @@ export default function SchedulePage() {
                               <Clock className="w-3 h-3" />
                               {new Date(post.scheduledAt).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
                             </span>
+                            <StatusBadge post={post} />
                           </div>
                           <p className="text-sm text-muted leading-relaxed line-clamp-3">{post.content}</p>
                         </div>
@@ -227,4 +251,24 @@ export default function SchedulePage() {
       </div>
     </div>
   );
+}
+
+function StatusBadge({ post }: { post: ScheduledPost }) {
+  if (post.status === "published") {
+    return (
+      <span className="text-[11px] text-success flex items-center gap-1">
+        <CheckCircle2 className="w-3 h-3" />
+        Publié
+      </span>
+    );
+  }
+  if (post.status === "failed") {
+    return (
+      <span className="text-[11px] text-error flex items-center gap-1" title={post.error || undefined}>
+        <XCircle className="w-3 h-3" />
+        Échec
+      </span>
+    );
+  }
+  return null;
 }

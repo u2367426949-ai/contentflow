@@ -13,6 +13,7 @@ import {
   ArrowUpRight,
   RefreshCw,
   Settings,
+  Share2,
 } from "lucide-react";
 import { getPlan } from "@/lib/plans";
 
@@ -164,6 +165,15 @@ export function UserMenu() {
             >
               <LayoutDashboard className="w-4 h-4 text-muted-foreground" />
               Dashboard
+            </Link>
+
+            <Link
+              href="/dashboard/settings"
+              onClick={() => setOpen(false)}
+              className="flex items-center gap-3 px-4 py-2.5 text-sm text-foreground hover:bg-surface transition-colors"
+            >
+              <Share2 className="w-4 h-4 text-muted-foreground" />
+              Connexions
             </Link>
 
             {!isPaidPlan ? (
