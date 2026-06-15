@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { PLANS, getPlanFromPriceId, type PaidPlan } from "@/lib/plans";
 
 const WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || "";
+
+function resolvePlanFromMetadata(plan: string | undefined): PaidPlan {
+  if (plan && plan in PLANS && plan !== "free") return plan as PaidPlan;
+  return "creator";
+}
 
 export async function POST(req: NextRequest) {
   const body = await req.text();
@@ -24,6 +30,7 @@ export async function POST(req: NextRequest) {
       case "checkout.session.completed": {
         const session = event.data.object;
         const clerkId = session.metadata?.clerkId;
+        const plan = resolvePlanFromMetadata(session.metadata?.plan);
 
         if (clerkId) {
           const customerId = session.customer as string;
@@ -31,22 +38,39 @@ export async function POST(req: NextRequest) {
             where: { clerkId },
             create: {
               clerkId,
-              plan: "pro",
+              plan,
               stripeCustomerId: customerId || "",
             },
             update: {
-              plan: "pro",
+              plan,
               stripeCustomerId: customerId || undefined,
             },
           });
-          console.log(`✅ Plan upgraded to pro for clerkId: ${clerkId}`);
+          console.log(`✅ Plan upgraded to ${plan} for clerkId: ${clerkId}`);
+        }
+        break;
+      }
+
+      case "customer.subscription.updated": {
+        // Handles upgrades/downgrades made via the billing portal.
+        const subscription = event.data.object;
+        const customerId = subscription.customer as string;
+        const priceId = subscription.items.data[0]?.price?.id;
+        const plan = priceId ? getPlanFromPriceId(priceId) : null;
+
+        if (customerId && plan && subscription.status === "active") {
+          await prisma.user.updateMany({
+            where: { stripeCustomerId: customerId },
+            data: { plan },
+          });
+          console.log(`🔄 Plan updated to ${plan} for customer: ${customerId}`);
         }
         break;
       }
 
       case "customer.subscription.deleted": {
-        const subscription = event.data.object;
         // Find user by Stripe customer ID and downgrade
+        const subscription = event.data.object;
         const customerId = subscription.customer as string;
         if (customerId) {
           await prisma.user.updateMany({

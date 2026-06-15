@@ -67,3 +67,26 @@ export function getPlan(plan: string | null | undefined): PlanConfig {
 export function isPaid(plan: string | null | undefined): boolean {
   return getPlan(plan).id !== "free";
 }
+
+/** Paid plans that map to a real Stripe subscription price. */
+export type PaidPlan = "creator" | "pro" | "agency";
+
+/** Env var names holding each plan's Stripe Price ID. */
+export const PLAN_PRICE_ENV: Record<PaidPlan, string> = {
+  creator: "STRIPE_PRICE_CREATOR",
+  pro: "STRIPE_PRICE_PRO",
+  agency: "STRIPE_PRICE_AGENCY",
+};
+
+/** Read the Stripe Price ID configured for a paid plan, if any. */
+export function getPriceId(plan: PaidPlan): string | null {
+  return process.env[PLAN_PRICE_ENV[plan]] || null;
+}
+
+/** Reverse-lookup: map a Stripe Price ID back to one of our paid plans. */
+export function getPlanFromPriceId(priceId: string): PaidPlan | null {
+  for (const [plan, envVar] of Object.entries(PLAN_PRICE_ENV)) {
+    if (process.env[envVar] === priceId) return plan as PaidPlan;
+  }
+  return null;
+}

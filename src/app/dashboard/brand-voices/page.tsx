@@ -14,6 +14,7 @@ import {
   Check,
 } from "lucide-react";
 import Link from "next/link";
+import { getPlan } from "@/lib/plans";
 
 interface VoiceProfile {
   summary?: string;
@@ -32,13 +33,6 @@ interface BrandVoice {
   createdAt: string;
 }
 
-const PLAN_LIMITS: Record<string, number> = {
-  free: 0,
-  creator: 1,
-  pro: 3,
-  agency: 10,
-};
-
 export default function BrandVoicesPage() {
   const router = useRouter();
   const { isLoaded, isSignedIn } = useUser();
@@ -53,7 +47,7 @@ export default function BrandVoicesPage() {
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState("");
 
-  const limit = PLAN_LIMITS[plan] ?? 0;
+  const limit = getPlan(plan).brandVoices;
   const locked = limit === 0;
   const atLimit = voices.length >= limit;
 

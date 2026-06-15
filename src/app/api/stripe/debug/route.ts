@@ -1,19 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
+import { PLAN_PRICE_ENV, type PaidPlan } from "@/lib/plans";
 
 export async function GET(req: NextRequest) {
   const results: Record<string, unknown> = {};
 
   const sk = process.env.STRIPE_SECRET_KEY;
-  const pk = process.env.STRIPE_PRICE_ID;
   const ws = process.env.STRIPE_WEBHOOK_SECRET;
   const au = process.env.NEXT_PUBLIC_APP_URL;
 
   results.secret_key = sk ? `OK (${sk.slice(0, 8)}...)` : "MANQUANT";
-  results.price_id = pk || "MANQUANT";
   results.webhook_secret = ws ? `OK (${ws.slice(0, 8)}...)` : "MANQUANT";
   results.app_url = au || "MANQUANT";
 
+  const prices: Record<string, unknown> = {};
+
   if (!sk) {
+    for (const [plan, envVar] of Object.entries(PLAN_PRICE_ENV)) {
+      prices[plan] = process.env[envVar] || "MANQUANT";
+    }
+    results.prices = prices;
     return NextResponse.json({ ...results, error: "STRIPE_SECRET_KEY manquant" });
   }
 
@@ -24,10 +29,15 @@ export async function GET(req: NextRequest) {
     const balance = await stripe.balance.retrieve();
     results.connection = "OK";
 
-    if (pk) {
+    for (const [plan, envVar] of Object.entries(PLAN_PRICE_ENV) as [PaidPlan, string][]) {
+      const priceId = process.env[envVar];
+      if (!priceId) {
+        prices[plan] = "MANQUANT";
+        continue;
+      }
       try {
-        const price = await stripe.prices.retrieve(pk);
-        results.price = {
+        const price = await stripe.prices.retrieve(priceId);
+        prices[plan] = {
           id: price.id,
           type: price.type,
           recurring: price.recurring?.interval || "one-time",
@@ -35,9 +45,10 @@ export async function GET(req: NextRequest) {
           active: price.active,
         };
       } catch (e) {
-        results.price = `ERREUR: ${e instanceof Error ? e.message : String(e)}`;
+        prices[plan] = `ERREUR: ${e instanceof Error ? e.message : String(e)}`;
       }
     }
+    results.prices = prices;
   } catch (e) {
     results.connection = `ERREUR: ${e instanceof Error ? e.message : String(e)}`;
   }

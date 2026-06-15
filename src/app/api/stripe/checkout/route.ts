@@ -1,13 +1,32 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getUserId } from "@/lib/auth";
+import { getPriceId, type PaidPlan } from "@/lib/plans";
 
-const PRICE_ID = process.env.STRIPE_PRICE_ID || "price_pro_19eur";
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://contentflow-ai-node-ia.vercel.app";
+const VALID_PLANS: PaidPlan[] = ["creator", "pro", "agency"];
 
 export async function POST(req: NextRequest) {
   const clerkId = await getUserId();
   if (!clerkId) {
     return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
+  }
+
+  let plan: PaidPlan = "creator";
+  try {
+    const body = await req.json();
+    if (VALID_PLANS.includes(body?.plan)) {
+      plan = body.plan;
+    }
+  } catch {
+    // No body provided — default to Creator.
+  }
+
+  const priceId = getPriceId(plan);
+  if (!priceId) {
+    return NextResponse.json(
+      { error: `Le plan ${plan} n'est pas configuré (price ID manquant).` },
+      { status: 500 }
+    );
   }
 
   try {
@@ -19,12 +38,19 @@ export async function POST(req: NextRequest) {
       mode: "subscription",
       line_items: [
         {
-          price: PRICE_ID,
+          price: priceId,
           quantity: 1,
         },
       ],
       metadata: {
         clerkId,
+        plan,
+      },
+      subscription_data: {
+        metadata: {
+          clerkId,
+          plan,
+        },
       },
       success_url: `${APP_URL}/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${APP_URL}/upgrade?canceled=true`,

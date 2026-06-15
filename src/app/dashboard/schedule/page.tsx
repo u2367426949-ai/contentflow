@@ -15,6 +15,7 @@ import {
   Check,
   Sparkles,
 } from "lucide-react";
+import { getPlan } from "@/lib/plans";
 
 interface ScheduledPost {
   id: string;
@@ -66,7 +67,7 @@ export default function SchedulePage() {
       const res = await fetch("/api/user/me");
       const data = await res.json();
       setPlan(data.plan);
-      if (data.plan !== "pro") {
+      if (!getPlan(data.plan).autoPublish) {
         router.replace("/upgrade?reason=schedule");
         return;
       }

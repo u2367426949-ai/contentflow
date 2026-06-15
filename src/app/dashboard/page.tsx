@@ -17,6 +17,7 @@ import {
   Upload,
 } from "lucide-react";
 import Link from "next/link";
+import { getPlan } from "@/lib/plans";
 
 type SourceType = "url" | "youtube" | "rss" | "text";
 
@@ -458,12 +459,12 @@ export default function DashboardPage() {
             </div>
             <div className="p-4 rounded-xl bg-card border border-border/50">
               <div className="text-2xl font-bold text-foreground">
-                {quota && quota.plan === "free"
-                  ? `${3 - quota.generationCount}`
+                {quota && getPlan(quota.plan).genQuota !== null
+                  ? `${Math.max(0, getPlan(quota.plan).genQuota! - quota.generationCount)}`
                   : "∞"}
               </div>
               <div className="text-xs text-muted mt-1">
-                {quota && quota.plan === "free" ? "Restantes" : "Générations"}
+                {quota && getPlan(quota.plan).genQuota !== null ? "Restantes" : "Générations"}
               </div>
             </div>
           </div>

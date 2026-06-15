@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getUserId } from "@/lib/auth";
+import { getPlan } from "@/lib/plans";
 
 export async function GET(req: NextRequest) {
   const clerkId = await getUserId();
@@ -27,10 +28,10 @@ export async function POST(req: NextRequest) {
     update: {},
   });
 
-  // Only Pro users can schedule
-  if (user.plan !== "pro") {
+  // Scheduling is available on all paid plans
+  if (!getPlan(user.plan).autoPublish) {
     return NextResponse.json(
-      { error: "Planification réservée au plan Pro", upgradeUrl: "/upgrade" },
+      { error: "Planification réservée aux plans payants", upgradeUrl: "/upgrade" },
       { status: 402 }
     );
   }

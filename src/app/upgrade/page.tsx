@@ -1,74 +1,112 @@
 "use client";
 
-import { useState } from "react";
-import { useUser } from "@clerk/nextjs";
-import { useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
+import { useUser, useAuth } from "@clerk/nextjs";
 import Link from "next/link";
 import {
   Sparkles,
   CheckCircle2,
   Star,
-  Zap,
-  Infinity,
-  MessageSquare,
   ArrowLeft,
-  Shield,
   Crown,
   Loader2,
+  Mic,
 } from "lucide-react";
+import { PLANS, type PaidPlan } from "@/lib/plans";
 
-const FEATURES = [
+interface Tier {
+  id: PaidPlan;
+  highlight?: boolean;
+  tagline: string;
+  features: string[];
+}
+
+const TIERS: Tier[] = [
   {
-    icon: <Infinity className="w-5 h-5" />,
-    title: "Générations illimitées",
-    desc: "Plus de limite mensuelle. Générez autant de posts que vous voulez.",
+    id: "creator",
+    tagline: "Pour créateurs qui publient sur LinkedIn",
+    features: [
+      "Générations illimitées",
+      "1 voix de marque (clonage de style)",
+      "Auto-publication LinkedIn",
+      "Programmation de posts",
+      "Sources multiples : URL, YouTube, RSS, texte",
+    ],
   },
   {
-    icon: <Zap className="w-5 h-5" />,
-    title: "Tous les formats",
-    desc: "LinkedIn, Twitter, Instagram et bientôt plus de plateformes.",
+    id: "pro",
+    highlight: true,
+    tagline: "Pour les pros multi-plateformes",
+    features: [
+      "Tout Creator, plus :",
+      "Multi-plateforme : LinkedIn, X, Instagram",
+      "3 voix de marque",
+      "Analytics & boucle de performance",
+      "Support prioritaire",
+    ],
   },
   {
-    icon: <MessageSquare className="w-5 h-5" />,
-    title: "Personnalisation du ton",
-    desc: "Choisissez le ton : professionnel, décontracté, humoristique, inspirant.",
-  },
-  {
-    icon: <Shield className="w-5 h-5" />,
-    title: "Support prioritaire",
-    desc: "Une question ? Notre équipe vous répond en moins de 2h.",
+    id: "agency",
+    tagline: "Pour agences et multi-clients",
+    features: [
+      "Tout Pro, plus :",
+      "10 voix de marque",
+      "Gestion multi-clients",
+      "White label",
+      "Support dédié",
+    ],
   },
 ];
 
 export default function UpgradePage() {
   const { isSignedIn } = useUser();
-  const router = useRouter();
-  const [loading, setLoading] = useState(false);
+  const { getToken } = useAuth();
+  const [loadingPlan, setLoadingPlan] = useState<PaidPlan | null>(null);
+  const [currentPlan, setCurrentPlan] = useState<string>("free");
 
-  async function handleCheckout() {
-    if (!isSignedIn) {
-      router.push("/sign-up");
-      return;
-    }
-    setLoading(true);
+  useEffect(() => {
+    if (!isSignedIn) return;
+    (async () => {
+      try {
+        const token = await getToken();
+        const res = await fetch("/api/user/me", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) setCurrentPlan((await res.json()).plan || "free");
+      } catch {
+        /* ignore */
+      }
+    })();
+  }, [isSignedIn, getToken]);
+
+  async function handleCheckout(plan: PaidPlan) {
+    setLoadingPlan(plan);
     try {
-      const res = await fetch("/api/stripe/checkout", { method: "POST" });
+      const token = await getToken();
+      const res = await fetch("/api/stripe/checkout", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ plan }),
+      });
       const data = await res.json();
       if (data.url) {
         window.location.href = data.url;
       } else {
         alert("Erreur: " + (data.error || "Impossible de créer la session"));
       }
-    } catch (err) {
+    } catch {
       alert("Erreur de connexion");
     } finally {
-      setLoading(false);
+      setLoadingPlan(null);
     }
   }
 
   return (
     <div className="min-h-[calc(100vh-4rem)]">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-16 md:py-24">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16 md:py-24">
         {/* Back link */}
         <Link
           href="/dashboard"
@@ -79,87 +117,112 @@ export default function UpgradePage() {
         </Link>
 
         {/* Header */}
-        <div className="text-center mb-16">
+        <div className="text-center mb-14">
           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-accent/10 border border-accent/20 text-accent text-sm mb-6">
-            <Crown className="w-3.5 h-3.5" />
-            <span>Passer en Pro</span>
+            <Mic className="w-3.5 h-3.5" />
+            <span>Le cerveau éditorial qui apprend votre voix</span>
           </div>
           <h1 className="text-3xl md:text-5xl font-bold text-foreground mb-4 tracking-tight">
-            Débloquez tout le potentiel
+            Choisissez votre plan
           </h1>
           <p className="text-muted max-w-xl mx-auto text-base md:text-lg">
-            Vous avez utilisé vos 3 générations gratuites ce mois-ci. Passez en
-            Pro pour continuer à créer du contenu sans limite.
+            Clonez votre style, publiez automatiquement sur LinkedIn et analysez
+            vos performances. Sans engagement, annulez à tout moment.
           </p>
         </div>
 
-        {/* Pricing Card */}
-        <div className="max-w-md mx-auto mb-16">
-          <div className="relative p-8 rounded-2xl bg-card border-2 border-accent/30 shadow-xl shadow-accent/5">
-            <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full bg-accent text-white text-sm font-medium flex items-center gap-1.5">
-              <Star className="w-3.5 h-3.5" /> Recommandé
-            </div>
+        {/* Pricing Cards */}
+        <div className="grid md:grid-cols-3 gap-6 mb-16 items-stretch">
+          {TIERS.map((tier) => {
+            const config = PLANS[tier.id];
+            const isCurrent = currentPlan === tier.id;
+            return (
+              <div
+                key={tier.id}
+                className={`relative p-8 rounded-2xl bg-card border-2 flex flex-col ${
+                  tier.highlight
+                    ? "border-accent/30 shadow-xl shadow-accent/5"
+                    : "border-border"
+                }`}
+              >
+                {tier.highlight && (
+                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full bg-accent text-white text-sm font-medium flex items-center gap-1.5">
+                    <Star className="w-3.5 h-3.5" /> Recommandé
+                  </div>
+                )}
 
-            <div className="text-center mb-8 pt-2">
-              <div className="text-sm font-medium text-muted mb-1">Plan Pro</div>
-              <div className="flex items-baseline justify-center gap-1">
-                <span className="text-5xl font-bold text-foreground">9,99 €</span>
-                <span className="text-muted">/mois</span>
+                <div className="text-center mb-6 pt-2">
+                  <div className="text-sm font-medium text-muted mb-1">
+                    {config.name}
+                  </div>
+                  <div className="flex items-baseline justify-center gap-1">
+                    <span className="text-4xl font-bold text-foreground">
+                      {config.price} €
+                    </span>
+                    <span className="text-muted">/mois</span>
+                  </div>
+                  <p className="text-xs text-muted mt-2">{tier.tagline}</p>
+                </div>
+
+                <ul className="space-y-3 mb-8 flex-1">
+                  {tier.features.map((f) => (
+                    <li
+                      key={f}
+                      className={`flex items-start gap-2.5 text-sm ${
+                        f.endsWith(":") ? "text-foreground font-medium" : "text-muted"
+                      }`}
+                    >
+                      {!f.endsWith(":") && (
+                        <CheckCircle2 className="w-4 h-4 text-success shrink-0 mt-0.5" />
+                      )}
+                      {f}
+                    </li>
+                  ))}
+                </ul>
+
+                <button
+                  onClick={() => handleCheckout(tier.id)}
+                  disabled={loadingPlan !== null || isCurrent}
+                  className={`block w-full text-center py-3.5 rounded-xl font-semibold text-base transition-all disabled:opacity-50 ${
+                    tier.highlight
+                      ? "bg-accent text-white hover:bg-accent-hover shadow-lg shadow-accent/20"
+                      : "bg-surface text-foreground hover:bg-surface-hover border border-border"
+                  }`}
+                >
+                  {isCurrent ? (
+                    "Plan actuel"
+                  ) : loadingPlan === tier.id ? (
+                    <span className="inline-flex items-center gap-2">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Redirection...
+                    </span>
+                  ) : isSignedIn ? (
+                    `Choisir ${config.name}`
+                  ) : (
+                    "Créer un compte"
+                  )}
+                </button>
               </div>
-              <p className="text-xs text-muted mt-2">Sans engagement, annulez à tout moment</p>
-            </div>
+            );
+          })}
+        </div>
 
-            <ul className="space-y-3 mb-8">
-              {[
-                "Générations illimitées",
-                "Tous les formats sociaux",
-                "Personnalisation du ton",
-                "Historique illimité",
-                "Support prioritaire",
-                "Sans publicité",
-              ].map((f) => (
-                <li key={f} className="flex items-start gap-2.5 text-sm text-muted">
-                  <CheckCircle2 className="w-4 h-4 text-success shrink-0 mt-0.5" />
-                  {f}
-                </li>
-              ))}
-            </ul>
-
-            <button
-              onClick={handleCheckout}
-              disabled={loading}
-              className="block w-full text-center py-3.5 rounded-xl bg-accent text-white font-semibold text-base hover:bg-accent-hover transition-all shadow-lg shadow-accent/20 disabled:opacity-50"
-            >
-              {loading ? (
-                <span className="inline-flex items-center gap-2">
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Redirection...
-                </span>
-              ) : (
-                isSignedIn ? "Passer en Pro" : "Créer un compte"
-              )}
-            </button>
-
-            <p className="text-center text-xs text-muted-foreground mt-4">
-              Paiement sécurisé • Sans engagement
-            </p>
+        {/* Free plan note */}
+        <div className="max-w-2xl mx-auto text-center">
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-surface border border-border/50 text-sm text-muted">
+            <Sparkles className="w-4 h-4 text-accent" />
+            Plan Free : {PLANS.free.genQuota} générations/mois, publication
+            manuelle, sans voix de marque.
           </div>
         </div>
 
-        {/* Features grid */}
-        <div className="grid md:grid-cols-2 gap-4 max-w-2xl mx-auto">
-          {FEATURES.map((f) => (
-            <div
-              key={f.title}
-              className="p-5 rounded-xl bg-card border border-border/50 hover:border-border transition-all"
-            >
-              <div className="w-9 h-9 rounded-lg bg-accent/10 flex items-center justify-center mb-3 text-accent">
-                {f.icon}
-              </div>
-              <h3 className="text-sm font-semibold text-foreground mb-1">{f.title}</h3>
-              <p className="text-xs text-muted leading-relaxed">{f.desc}</p>
-            </div>
-          ))}
+        {/* Why it's better */}
+        <div className="mt-16 text-center">
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-accent/5 text-accent text-xs font-medium">
+            <Crown className="w-3.5 h-3.5" />
+            Taplio et AuthoredUp sont à 65€/mois, LinkedIn uniquement. Creator
+            démarre à 29€, multi-plateforme + clonage de voix.
+          </div>
         </div>
       </div>
     </div>

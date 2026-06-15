@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getUserId } from "@/lib/auth";
+import { PLANS, type PaidPlan } from "@/lib/plans";
 
-// Manual Pro activation — checks Stripe for any completed checkout session
+function resolvePlanFromMetadata(plan: string | undefined): PaidPlan {
+  if (plan && plan in PLANS && plan !== "free") return plan as PaidPlan;
+  return "creator";
+}
+
+// Manual plan activation — checks Stripe for any completed checkout session
 export async function POST(req: NextRequest) {
   const clerkId = await getUserId();
   if (!clerkId) {
@@ -18,7 +24,6 @@ export async function POST(req: NextRequest) {
       limit: 10,
     });
 
-    let found = false;
     for (const session of sessions.data) {
       if (
         session.metadata?.clerkId === clerkId &&
@@ -26,22 +31,18 @@ export async function POST(req: NextRequest) {
           session.payment_status === "no_payment_required" ||
           session.status === "complete")
       ) {
-        found = true;
+        const plan = resolvePlanFromMetadata(session.metadata?.plan);
 
         await prisma.user.updateMany({
           where: { clerkId },
           data: {
-            plan: "pro",
+            plan,
             stripeCustomerId: (session.customer as string) || undefined,
           },
         });
 
-        break;
+        return NextResponse.json({ success: true, plan });
       }
-    }
-
-    if (found) {
-      return NextResponse.json({ success: true, plan: "pro" });
     }
 
     return NextResponse.json(

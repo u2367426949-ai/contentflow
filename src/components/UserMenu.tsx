@@ -10,12 +10,11 @@ import {
   LogOut,
   ChevronDown,
   Sparkles,
-  User,
   ArrowUpRight,
   RefreshCw,
-  XCircle,
   Settings,
 } from "lucide-react";
+import { getPlan } from "@/lib/plans";
 
 export function UserMenu() {
   const { user, isLoaded } = useUser();
@@ -65,8 +64,9 @@ export function UserMenu() {
       ? `${user.firstName[0]}${user.lastName[0]}`.toUpperCase()
       : user.firstName?.[0]?.toUpperCase() || "?";
 
-  const isPro = quota?.plan === "pro";
-  const remaining = quota ? 3 - quota.generationCount : 0;
+  const plan = getPlan(quota?.plan);
+  const isPaidPlan = plan.id !== "free";
+  const remaining = quota ? Math.max(0, (plan.genQuota ?? 0) - quota.generationCount) : 0;
 
   return (
     <div className="relative" ref={menuRef}>
@@ -87,7 +87,7 @@ export function UserMenu() {
               {initials}
             </div>
           )}
-          {isPro && (
+          {isPaidPlan && (
             <span className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-accent flex items-center justify-center ring-2 ring-background">
               <Crown className="w-2 h-2 text-white" />
             </span>
@@ -100,8 +100,8 @@ export function UserMenu() {
             {user.firstName || user.emailAddresses[0]?.emailAddress?.split("@")[0] || "Utilisateur"}
           </div>
           <div className="flex items-center gap-1">
-            <span className={`text-[11px] font-medium ${isPro ? "text-accent" : "text-muted"}`}>
-              {isPro ? "Pro" : "Gratuit"}
+            <span className={`text-[11px] font-medium ${isPaidPlan ? "text-accent" : "text-muted"}`}>
+              {isPaidPlan ? plan.name : "Gratuit"}
             </span>
             <ChevronDown className={`w-3 h-3 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`} />
           </div>
@@ -136,12 +136,13 @@ export function UserMenu() {
 
             {/* Plan badge */}
             <div className={`mt-3 flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium ${
-              isPro ? "bg-accent/10 text-accent" : "bg-surface text-muted-foreground"
+              isPaidPlan ? "bg-accent/10 text-accent" : "bg-surface text-muted-foreground"
             }`}>
-              {isPro ? (
+              {isPaidPlan ? (
                 <>
                   <Crown className="w-3.5 h-3.5" />
-                  Plan Pro · Générations illimitées
+                  Plan {plan.name} · Générations illimitées
+                  {plan.brandVoices > 0 && ` · ${plan.brandVoices} voix de marque`}
                 </>
               ) : (
                 <>
@@ -165,7 +166,7 @@ export function UserMenu() {
               Dashboard
             </Link>
 
-            {!isPro ? (
+            {!isPaidPlan ? (
               <>
                 <Link
                   href="/upgrade"
@@ -173,7 +174,7 @@ export function UserMenu() {
                   className="flex items-center gap-3 px-4 py-2.5 text-sm text-accent hover:bg-accent/5 transition-colors"
                 >
                   <Crown className="w-4 h-4" />
-                  Passer en Pro
+                  Voir les plans
                   <ArrowUpRight className="w-3 h-3 ml-auto" />
                 </Link>
                 <button
@@ -199,10 +200,15 @@ export function UserMenu() {
               </>
             ) : (
               <>
-                <div className="flex items-center gap-3 px-4 py-2.5 text-sm text-success">
+                <Link
+                  href="/upgrade"
+                  onClick={() => setOpen(false)}
+                  className="flex items-center gap-3 px-4 py-2.5 text-sm text-success"
+                >
                   <Crown className="w-4 h-4" />
-                  Pro actif
-                </div>
+                  Plan {plan.name} actif
+                  <ArrowUpRight className="w-3 h-3 ml-auto" />
+                </Link>
                 <button
                   onClick={async () => {
                     setOpen(false);

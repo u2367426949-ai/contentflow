@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getUserId } from "@/lib/auth";
+import { PLANS, type PaidPlan } from "@/lib/plans";
 
-// Find the user's most recent completed Stripe session and activate Pro
+function resolvePlanFromMetadata(plan: string | undefined): PaidPlan {
+  if (plan && plan in PLANS && plan !== "free") return plan as PaidPlan;
+  return "creator";
+}
+
+// Find the user's most recent completed Stripe session and activate the matching plan
 export async function POST(req: NextRequest) {
   const clerkId = await getUserId();
   if (!clerkId) {
@@ -30,16 +36,18 @@ export async function POST(req: NextRequest) {
         (session.status === "complete" && session.subscription);
 
       if (isValid) {
+        const plan = resolvePlanFromMetadata(session.metadata?.plan);
+
         // Ensure user exists, then update
         await prisma.user.upsert({
           where: { clerkId },
           create: {
             clerkId,
-            plan: "pro",
+            plan,
             stripeCustomerId: (session.customer as string) || "",
           },
           update: {
-            plan: "pro",
+            plan,
             stripeCustomerId: (session.customer as string) || undefined,
           },
         });
@@ -50,13 +58,14 @@ export async function POST(req: NextRequest) {
           mode: session.mode,
           status: session.status,
           payment_status: session.payment_status,
+          plan,
         };
         break;
       }
     }
 
     if (activated) {
-      return NextResponse.json({ success: true, plan: "pro", session: sessionInfo });
+      return NextResponse.json({ success: true, plan: sessionInfo?.plan, session: sessionInfo });
     }
 
     // Return what we found for debugging
