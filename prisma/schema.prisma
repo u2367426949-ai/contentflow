@@ -19,6 +19,26 @@ model User {
   updatedAt        DateTime @updatedAt
   projects         ContentProject[]
   scheduledPosts   ScheduledPost[]
+  brandVoices      BrandVoice[]
+}
+
+model BrandVoice {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String   @default("Ma voix")
+  // Raw sample posts the user pasted/uploaded, joined by a separator.
+  samples     String
+  // AI-extracted style profile (JSON string: tone, structure, vocabulary, etc.).
+  profile     String?
+  // How many sample posts were provided.
+  sampleCount Int      @default(0)
+  status      String   @default("ready")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  generations Generation[]
+
+  @@index([userId])
 }
 
 model ContentProject {
@@ -38,12 +58,14 @@ model Generation {
   id         String   @id @default(cuid())
   projectId  String
   project    ContentProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  platform   String
-  content    String?
-  tone       String   @default("professionnel")
-  status     String   @default("pending")
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  platform     String
+  content      String?
+  tone         String   @default("professionnel")
+  status       String   @default("pending")
+  brandVoiceId String?
+  brandVoice   BrandVoice? @relation(fields: [brandVoiceId], references: [id], onDelete: SetNull)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }
 
 model ScheduledPost {

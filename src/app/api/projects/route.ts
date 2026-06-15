@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import prisma from "@/lib/prisma";
 import { extractUrlContent } from "@/lib/url-extractor";
+import { extractYouTubeTranscript } from "@/lib/sources/youtube";
 import { getUserId } from "@/lib/auth";
 
 export async function GET(req: NextRequest) {
@@ -32,7 +33,13 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { originalUrl, sourceText } = await req.json();
+    const { originalUrl, sourceText, sourceType, title: providedTitle } =
+      (await req.json()) as {
+        originalUrl?: string;
+        sourceText?: string;
+        sourceType?: "url" | "youtube" | "text";
+        title?: string;
+      };
 
     // Ensure user exists
     let user = await prisma.user.findUnique({ where: { clerkId } });
@@ -43,13 +50,33 @@ export async function POST(req: NextRequest) {
     }
 
     let text = sourceText || "";
-    let title = "Sans titre";
+    let title = providedTitle?.trim() || "Sans titre";
 
-    if (originalUrl) {
+    if (sourceType === "youtube" && originalUrl) {
+      // YouTube transcript ingestion.
+      try {
+        const extracted = await extractYouTubeTranscript(originalUrl);
+        text = extracted.text;
+        title = extracted.title || "Vidéo YouTube";
+      } catch (e) {
+        return NextResponse.json(
+          {
+            error:
+              e instanceof Error
+                ? e.message
+                : "Impossible de récupérer le transcript YouTube",
+          },
+          { status: 400 }
+        );
+      }
+    } else if (sourceType === "text") {
+      // Pasted text / uploaded document already provides sourceText.
+      title = providedTitle?.trim() || "Document";
+    } else if (originalUrl) {
+      // Default: article URL (also used for RSS-selected items).
       try {
         const extracted = await extractUrlContent(originalUrl);
         text = extracted.text;
-        // Use extracted title, fallback to URL-based title
         title =
           extracted.title ||
           originalUrl.split("/").pop()?.replace(/-/g, " ") ||
@@ -62,7 +89,7 @@ export async function POST(req: NextRequest) {
 
     if (!text.trim()) {
       return NextResponse.json(
-        { error: "Impossible d'extraire le contenu de cette URL" },
+        { error: "Impossible d'extraire le contenu de cette source" },
         { status: 400 }
       );
     }

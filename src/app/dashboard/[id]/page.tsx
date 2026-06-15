@@ -18,6 +18,7 @@ import {
   Calendar,
   Lock,
   Crown,
+  Mic,
 } from "lucide-react";
 import Link from "next/link";
 import { ScheduleModal } from "@/components/ScheduleModal";
@@ -78,6 +79,11 @@ interface Project {
   generations: Generation[];
 }
 
+interface BrandVoice {
+  id: string;
+  name: string;
+}
+
 export default function ProjectDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -91,6 +97,8 @@ export default function ProjectDetailPage() {
   const [error, setError] = useState("");
   const [tone, setTone] = useState("professionnel");
   const [isPro, setIsPro] = useState(false);
+  const [voices, setVoices] = useState<BrandVoice[]>([]);
+  const [brandVoiceId, setBrandVoiceId] = useState<string>("");
   const [scheduleModal, setScheduleModal] = useState<{ open: boolean; platform: string; content: string }>({ open: false, platform: "", content: "" });
 
   useEffect(() => {
@@ -101,6 +109,7 @@ export default function ProjectDetailPage() {
     if (isLoaded && isSignedIn) {
       fetchProject();
       fetchPlan();
+      fetchVoices();
     }
   }, [isLoaded, isSignedIn]);
 
@@ -108,7 +117,17 @@ export default function ProjectDetailPage() {
     try {
       const res = await fetch("/api/user/me");
       const data = await res.json();
-      setIsPro(data.plan === "pro");
+      setIsPro(data.plan && data.plan !== "free");
+    } catch { /* ignore */ }
+  }
+
+  async function fetchVoices() {
+    try {
+      const token = await getToken();
+      const res = await fetch("/api/brand-voices", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) setVoices(await res.json());
     } catch { /* ignore */ }
   }
 
@@ -149,7 +168,7 @@ export default function ProjectDetailPage() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ projectId: params.id, tone }),
+        body: JSON.stringify({ projectId: params.id, tone, brandVoiceId: brandVoiceId || undefined }),
       });
 
       if (!res.ok) {
@@ -299,6 +318,48 @@ export default function ProjectDetailPage() {
               ))}
             </div>
           </div>
+
+          {/* Brand voice selector */}
+          <div className="flex items-center gap-3 mb-4">
+            <span className="text-xs text-muted font-medium inline-flex items-center gap-1.5">
+              <Mic className="w-3.5 h-3.5" />
+              Voix :
+            </span>
+            {voices.length > 0 ? (
+              <div className="flex flex-wrap gap-1.5">
+                <button
+                  onClick={() => setBrandVoiceId("")}
+                  className={`px-3 py-1.5 text-xs rounded-lg font-medium transition-all ${brandVoiceId === "" ? "bg-accent text-white shadow-sm" : "bg-surface text-muted-foreground hover:text-foreground hover:bg-surface-hover border border-border/50"}`}
+                >
+                  Aucune
+                </button>
+                {voices.map((v) => (
+                  <button
+                    key={v.id}
+                    onClick={() => setBrandVoiceId(v.id)}
+                    className={`px-3 py-1.5 text-xs rounded-lg font-medium transition-all ${brandVoiceId === v.id ? "bg-accent text-white shadow-sm" : "bg-surface text-muted-foreground hover:text-foreground hover:bg-surface-hover border border-border/50"}`}
+                  >
+                    {v.name}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <Link
+                href="/dashboard/brand-voices"
+                className="text-xs text-accent hover:text-accent-hover transition-colors inline-flex items-center gap-1"
+              >
+                <Mic className="w-3 h-3" />
+                Clonez votre style
+              </Link>
+            )}
+          </div>
+
+          {brandVoiceId && (
+            <p className="text-xs text-muted-foreground mb-4 -mt-1">
+              Les posts seront écrits dans votre voix clonée (le ton ci-dessus est ignoré).
+            </p>
+          )}
+
           <button
             onClick={handleGenerate}
             disabled={generating}

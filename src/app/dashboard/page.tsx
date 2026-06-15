@@ -5,15 +5,34 @@ import { useRouter } from "next/navigation";
 import { useUser, useAuth } from "@clerk/nextjs";
 import {
   Loader2,
-  Plus,
   ExternalLink,
   FileText,
   Sparkles,
   ArrowRight,
   Zap,
-  Clock,
+  PlaySquare,
+  Rss,
+  Link2,
+  Type,
+  Upload,
 } from "lucide-react";
 import Link from "next/link";
+
+type SourceType = "url" | "youtube" | "rss" | "text";
+
+const SOURCE_TABS: { id: SourceType; label: string; icon: React.ReactNode }[] = [
+  { id: "url", label: "URL", icon: <Link2 className="w-4 h-4" /> },
+  { id: "youtube", label: "YouTube", icon: <PlaySquare className="w-4 h-4" /> },
+  { id: "rss", label: "RSS", icon: <Rss className="w-4 h-4" /> },
+  { id: "text", label: "Texte", icon: <Type className="w-4 h-4" /> },
+];
+
+interface RssItem {
+  title: string;
+  link: string;
+  snippet: string;
+  pubDate: string | null;
+}
 
 const linkedinIcon = (
   <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
@@ -52,6 +71,11 @@ export default function DashboardPage() {
   const { isLoaded, isSignedIn } = useUser();
   const { getToken } = useAuth();
   const [url, setUrl] = useState("");
+  const [sourceType, setSourceType] = useState<SourceType>("url");
+  const [docTitle, setDocTitle] = useState("");
+  const [docText, setDocText] = useState("");
+  const [rssItems, setRssItems] = useState<RssItem[]>([]);
+  const [rssLoading, setRssLoading] = useState(false);
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
@@ -95,13 +119,9 @@ export default function DashboardPage() {
     } catch { /* silent */ }
   }
 
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault();
-    if (!url.trim()) return;
-
+  async function createProject(payload: Record<string, unknown>) {
     setCreating(true);
     setError("");
-
     try {
       const token = await getToken();
       const res = await fetch("/api/projects", {
@@ -110,7 +130,7 @@ export default function DashboardPage() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ originalUrl: url.trim() }),
+        body: JSON.stringify(payload),
       });
 
       if (!res.ok) {
@@ -120,6 +140,9 @@ export default function DashboardPage() {
 
       const project = await res.json();
       setUrl("");
+      setDocText("");
+      setDocTitle("");
+      setRssItems([]);
       await fetchProjects();
       router.push(`/dashboard/${project.id}`);
     } catch (err: unknown) {
@@ -128,6 +151,60 @@ export default function DashboardPage() {
     } finally {
       setCreating(false);
     }
+  }
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+
+    if (sourceType === "url") {
+      if (!url.trim()) return;
+      await createProject({ originalUrl: url.trim(), sourceType: "url" });
+    } else if (sourceType === "youtube") {
+      if (!url.trim()) return;
+      await createProject({ originalUrl: url.trim(), sourceType: "youtube" });
+    } else if (sourceType === "text") {
+      if (!docText.trim()) return;
+      await createProject({
+        sourceText: docText.trim(),
+        title: docTitle.trim() || undefined,
+        sourceType: "text",
+      });
+    }
+  }
+
+  async function loadRss(e: FormEvent) {
+    e.preventDefault();
+    if (!url.trim()) return;
+    setRssLoading(true);
+    setError("");
+    setRssItems([]);
+    try {
+      const token = await getToken();
+      const res = await fetch(`/api/sources/rss?url=${encodeURIComponent(url.trim())}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Erreur lors du chargement du flux");
+      setRssItems(data.items || []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Une erreur est survenue");
+    } finally {
+      setRssLoading(false);
+    }
+  }
+
+  async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const text = await file.text();
+    setDocText(text);
+    if (!docTitle) setDocTitle(file.name.replace(/\.[^.]+$/, ""));
+  }
+
+  function switchSource(type: SourceType) {
+    setSourceType(type);
+    setError("");
+    setRssItems([]);
   }
 
   function getPlatformStatusColor(status: string) {
@@ -158,36 +235,189 @@ export default function DashboardPage() {
             Dashboard
           </h1>
           <p className="text-muted">
-            Collez une URL d&apos;article pour générer vos posts en un clic.
+            URL, vidéo YouTube, flux RSS ou texte — transformez n&apos;importe
+            quelle source en posts.
           </p>
         </div>
 
-        {/* URL Input */}
-        <form onSubmit={handleSubmit} className="mb-12">
-          <div className="p-1 bg-card border border-border rounded-2xl shadow-sm">
-            <div className="flex flex-col sm:flex-row gap-3 p-3">
-              <div className="flex-1 relative">
-                <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
-                  <ExternalLink className="w-4 h-4 text-muted" />
+        {/* Multi-source input */}
+        <div className="mb-12">
+          {/* Source tabs */}
+          <div className="flex flex-wrap gap-1.5 mb-3">
+            {SOURCE_TABS.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => switchSource(tab.id)}
+                className={`inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium rounded-lg transition-all ${
+                  sourceType === tab.id
+                    ? "bg-accent text-white shadow-sm"
+                    : "bg-surface text-muted-foreground hover:text-foreground hover:bg-surface-hover border border-border/50"
+                }`}
+              >
+                {tab.icon}
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          {/* URL / YouTube single input */}
+          {(sourceType === "url" || sourceType === "youtube") && (
+            <form onSubmit={handleSubmit}>
+              <div className="p-1 bg-card border border-border rounded-2xl shadow-sm">
+                <div className="flex flex-col sm:flex-row gap-3 p-3">
+                  <div className="flex-1 relative">
+                    <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
+                      {sourceType === "youtube" ? (
+                        <PlaySquare className="w-4 h-4 text-muted" />
+                      ) : (
+                        <ExternalLink className="w-4 h-4 text-muted" />
+                      )}
+                    </div>
+                    <input
+                      type="url"
+                      value={url}
+                      onChange={(e) => setUrl(e.target.value)}
+                      placeholder={
+                        sourceType === "youtube"
+                          ? "https://youtube.com/watch?v=..."
+                          : "https://exemple.com/article"
+                      }
+                      className="w-full pl-11 pr-4 py-3 bg-transparent text-foreground placeholder:text-muted-foreground outline-none text-sm"
+                      disabled={creating}
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={creating || !url.trim()}
+                    className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-accent text-white font-medium text-sm hover:bg-accent-hover transition-all disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap shadow-sm shadow-accent/20"
+                  >
+                    {creating ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Analyse...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-4 h-4" />
+                        Générer
+                      </>
+                    )}
+                  </button>
                 </div>
+              </div>
+            </form>
+          )}
+
+          {/* RSS feed: load then pick an article */}
+          {sourceType === "rss" && (
+            <div>
+              <form onSubmit={loadRss}>
+                <div className="p-1 bg-card border border-border rounded-2xl shadow-sm">
+                  <div className="flex flex-col sm:flex-row gap-3 p-3">
+                    <div className="flex-1 relative">
+                      <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
+                        <Rss className="w-4 h-4 text-muted" />
+                      </div>
+                      <input
+                        type="url"
+                        value={url}
+                        onChange={(e) => setUrl(e.target.value)}
+                        placeholder="https://exemple.com/feed.xml"
+                        className="w-full pl-11 pr-4 py-3 bg-transparent text-foreground placeholder:text-muted-foreground outline-none text-sm"
+                        disabled={rssLoading}
+                      />
+                    </div>
+                    <button
+                      type="submit"
+                      disabled={rssLoading || !url.trim()}
+                      className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-accent text-white font-medium text-sm hover:bg-accent-hover transition-all disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap shadow-sm shadow-accent/20"
+                    >
+                      {rssLoading ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Chargement...
+                        </>
+                      ) : (
+                        <>
+                          <Rss className="w-4 h-4" />
+                          Charger
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </form>
+
+              {rssItems.length > 0 && (
+                <div className="mt-3 space-y-1.5 max-h-96 overflow-y-auto">
+                  {rssItems.map((item) => (
+                    <button
+                      key={item.link}
+                      onClick={() =>
+                        createProject({ originalUrl: item.link, sourceType: "url" })
+                      }
+                      disabled={creating}
+                      className="w-full text-left p-4 bg-card border border-border/50 rounded-xl hover:border-accent/30 hover:bg-card-hover transition-all disabled:opacity-50 group"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-foreground truncate">
+                            {item.title}
+                          </p>
+                          {item.snippet && (
+                            <p className="text-xs text-muted truncate mt-1">
+                              {item.snippet}
+                            </p>
+                          )}
+                        </div>
+                        <ArrowRight className="w-4 h-4 text-muted-foreground group-hover:text-accent transition-colors shrink-0" />
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Text / document */}
+          {sourceType === "text" && (
+            <form onSubmit={handleSubmit} className="p-4 bg-card border border-border rounded-2xl shadow-sm space-y-3">
+              <div className="flex items-center justify-between gap-3">
                 <input
-                  type="url"
-                  value={url}
-                  onChange={(e) => setUrl(e.target.value)}
-                  placeholder="https://exemple.com/article"
-                  className="w-full pl-11 pr-4 py-3 bg-transparent text-foreground placeholder:text-muted-foreground outline-none text-sm"
+                  value={docTitle}
+                  onChange={(e) => setDocTitle(e.target.value)}
+                  placeholder="Titre (optionnel)"
+                  className="flex-1 px-4 py-2.5 bg-surface border border-border/50 rounded-xl text-foreground placeholder:text-muted-foreground outline-none text-sm focus:border-accent/40"
                   disabled={creating}
                 />
+                <label className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-surface border border-border/50 text-sm text-muted-foreground hover:text-foreground cursor-pointer transition-all whitespace-nowrap">
+                  <Upload className="w-4 h-4" />
+                  Fichier
+                  <input
+                    type="file"
+                    accept=".txt,.md,.markdown,text/plain"
+                    onChange={handleFileUpload}
+                    className="hidden"
+                  />
+                </label>
               </div>
+              <textarea
+                value={docText}
+                onChange={(e) => setDocText(e.target.value)}
+                rows={8}
+                placeholder="Collez votre texte, vos notes, la transcription d'un appel... ou importez un fichier .txt / .md"
+                className="w-full px-4 py-3 bg-surface border border-border/50 rounded-xl text-foreground placeholder:text-muted-foreground outline-none text-sm leading-relaxed focus:border-accent/40 resize-y"
+                disabled={creating}
+              />
               <button
                 type="submit"
-                disabled={creating || !url.trim()}
-                className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-accent text-white font-medium text-sm hover:bg-accent-hover transition-all disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap shadow-sm shadow-accent/20"
+                disabled={creating || !docText.trim()}
+                className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-accent text-white font-medium text-sm hover:bg-accent-hover transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm shadow-accent/20"
               >
                 {creating ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    Analyse...
+                    Création...
                   </>
                 ) : (
                   <>
@@ -196,12 +426,11 @@ export default function DashboardPage() {
                   </>
                 )}
               </button>
-            </div>
-          </div>
-          {error && (
-            <p className="mt-3 text-sm text-error">{error}</p>
+            </form>
           )}
-        </form>
+
+          {error && <p className="mt-3 text-sm text-error">{error}</p>}
+        </div>
 
         {/* Quick stats */}
         {projects.length > 0 && (

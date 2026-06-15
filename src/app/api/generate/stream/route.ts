@@ -3,10 +3,10 @@ import { NextRequest } from "next/server";
 import prisma from "@/lib/prisma";
 import { getOpenAI } from "@/lib/openai";
 import { getUserId } from "@/lib/auth";
+import { getPlan } from "@/lib/plans";
+import { buildVoiceInstruction } from "@/lib/brand-voice";
 
 export const runtime = "nodejs";
-
-const FREE_LIMIT = 3;
 
 function getCurrentMonth(): string {
   const now = new Date();
@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { projectId, tone, platforms: requestedPlatforms } = await req.json();
+    const { projectId, tone, platforms: requestedPlatforms, brandVoiceId } = await req.json();
     if (!projectId) {
       return new Response(JSON.stringify({ error: "projectId requis" }), {
         status: 400,
@@ -95,8 +95,9 @@ export async function POST(req: NextRequest) {
     }
 
     const currentMonth = getCurrentMonth();
+    const plan = getPlan(user.plan);
 
-    if (user.plan === "free") {
+    if (plan.genQuota !== null) {
       // Reset count if month changed
       if (user.generationMonth !== currentMonth) {
         await prisma.user.update({
@@ -106,11 +107,11 @@ export async function POST(req: NextRequest) {
         user.generationCount = 0;
       }
 
-      if (user.generationCount >= FREE_LIMIT) {
+      if (user.generationCount >= plan.genQuota) {
         return new Response(
           JSON.stringify({
             error: "QUOTA_EXCEEDED",
-            message: "Vous avez atteint la limite de 3 générations ce mois-ci.",
+            message: `Vous avez atteint la limite de ${plan.genQuota} générations ce mois-ci.`,
             upgradeUrl: "/upgrade",
           }),
           {
@@ -118,6 +119,19 @@ export async function POST(req: NextRequest) {
             headers: { "Content-Type": "application/json" },
           }
         );
+      }
+    }
+
+    // ── Brand voice (optional, owned by this user) ──
+    let voiceInstruction = "";
+    let resolvedVoiceId: string | null = null;
+    if (brandVoiceId) {
+      const voice = await prisma.brandVoice.findFirst({
+        where: { id: brandVoiceId, userId: user.id },
+      });
+      if (voice) {
+        voiceInstruction = buildVoiceInstruction(voice.profile);
+        resolvedVoiceId = voice.id;
       }
     }
 
@@ -152,7 +166,7 @@ export async function POST(req: NextRequest) {
               messages: [
                 {
                   role: "system",
-                  content: `Tu es un expert en marketing de contenu. ${getPrompt(platform, tone || "professionnel")}`,
+                  content: `Tu es un expert en marketing de contenu. ${getPrompt(platform, tone || "professionnel")}${voiceInstruction ? `\n\n${voiceInstruction}` : ""}`,
                 },
                 {
                   role: "user",
@@ -190,6 +204,7 @@ export async function POST(req: NextRequest) {
                 data: {
                   content: fullContent.trim(),
                   status: "completed",
+                  brandVoiceId: resolvedVoiceId,
                 },
               });
             }
@@ -207,11 +222,13 @@ export async function POST(req: NextRequest) {
             )
           );
 
-          // Increment generation count
-          await prisma.user.update({
-            where: { id: user!.id },
-            data: { generationCount: { increment: 1 } },
-          });
+          // Increment generation count for quota-limited plans
+          if (plan.genQuota !== null) {
+            await prisma.user.update({
+              where: { id: user!.id },
+              data: { generationCount: { increment: 1 } },
+            });
+          }
         } catch (err) {
           const message =
             err instanceof Error ? err.message : "Erreur de génération";

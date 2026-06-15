@@ -3,8 +3,8 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getOpenAI } from "@/lib/openai";
 import { getUserId } from "@/lib/auth";
-
-const FREE_QUOTA = 3;
+import { getPlan } from "@/lib/plans";
+import { buildVoiceInstruction } from "@/lib/brand-voice";
 
 export async function POST(req: NextRequest) {
   const clerkId = await getUserId();
@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { projectId, tone } = await req.json();
+    const { projectId, tone, brandVoiceId } = await req.json();
     if (!projectId) {
       return NextResponse.json({ error: "projectId requis" }, { status: 400 });
     }
@@ -33,11 +33,12 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    if (user.plan !== "pro" && user.generationCount >= FREE_QUOTA) {
+    const plan = getPlan(user.plan);
+    if (plan.genQuota !== null && user.generationCount >= plan.genQuota) {
       return NextResponse.json(
         {
           error: "Quota gratuit dépassé",
-          quota: { plan: user.plan, used: user.generationCount, limit: FREE_QUOTA },
+          quota: { plan: user.plan, used: user.generationCount, limit: plan.genQuota },
           upgradeUrl: "/upgrade",
         },
         { status: 402 }
@@ -69,6 +70,19 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // ── Brand voice (optional, owned by this user) ──
+    let voiceInstruction = "";
+    let resolvedVoiceId: string | null = null;
+    if (brandVoiceId) {
+      const voice = await prisma.brandVoice.findFirst({
+        where: { id: brandVoiceId, userId: user.id },
+      });
+      if (voice) {
+        voiceInstruction = buildVoiceInstruction(voice.profile);
+        resolvedVoiceId = voice.id;
+      }
+    }
+
     const openai = getOpenAI();
     const sourceText = project.sourceText;
 
@@ -83,7 +97,7 @@ export async function POST(req: NextRequest) {
 2. Un post LinkedIn professionnel (~250-300 mots)
 3. Un post Twitter/X (max 280 caractères)
 4. Une légende Instagram (~150-200 mots avec hashtags)
-
+${voiceInstruction ? `\n${voiceInstruction}\n` : ""}
 Réponds UNIQUEMENT avec un objet JSON valide, sans texte avant ni après :
 {
   "keyPoints": ["point 1", "point 2", ...],
@@ -123,7 +137,7 @@ Réponds UNIQUEMENT avec un objet JSON valide, sans texte avant ni après :
       if (gen && content) {
         await prisma.generation.update({
           where: { id: gen.id },
-          data: { content, status: "completed" },
+          data: { content, status: "completed", brandVoiceId: resolvedVoiceId },
         });
         results.push({ platform, content });
       }
@@ -135,8 +149,8 @@ Réponds UNIQUEMENT avec un objet JSON valide, sans texte avant ni après :
       orderBy: { createdAt: "asc" },
     });
 
-    // ── Increment quota for free users ──
-    if (user.plan !== "pro") {
+    // ── Increment quota for quota-limited plans ──
+    if (plan.genQuota !== null) {
       await prisma.user.update({
         where: { clerkId },
         data: { generationCount: { increment: 1 } },
