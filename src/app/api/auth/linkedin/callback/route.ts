@@ -33,11 +33,9 @@ export async function GET(req: NextRequest) {
     const { accessToken, expiresIn } = await exchangeLinkedInCode(code);
     const profile = await getLinkedInProfile(accessToken);
 
-    const user = await prisma.user.upsert({
-      where: { clerkId },
-      create: { clerkId },
-      update: {},
-    });
+    const user =
+      (await prisma.user.findUnique({ where: { clerkId } })) ??
+      (await prisma.user.create({ data: { clerkId } }));
 
     const socialAccountData = {
       accessTokenEnc: encrypt(accessToken),
