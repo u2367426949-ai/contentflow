@@ -39,23 +39,27 @@ export async function GET(req: NextRequest) {
       update: {},
     });
 
-    await prisma.socialAccount.upsert({
+    const socialAccountData = {
+      accessTokenEnc: encrypt(accessToken),
+      expiresAt: new Date(Date.now() + expiresIn * 1000),
+      externalId: profile.sub,
+      externalName: profile.name,
+    };
+
+    const existingAccount = await prisma.socialAccount.findUnique({
       where: { userId_platform: { userId: user.id, platform: "linkedin" } },
-      create: {
-        userId: user.id,
-        platform: "linkedin",
-        accessTokenEnc: encrypt(accessToken),
-        expiresAt: new Date(Date.now() + expiresIn * 1000),
-        externalId: profile.sub,
-        externalName: profile.name,
-      },
-      update: {
-        accessTokenEnc: encrypt(accessToken),
-        expiresAt: new Date(Date.now() + expiresIn * 1000),
-        externalId: profile.sub,
-        externalName: profile.name,
-      },
     });
+
+    if (existingAccount) {
+      await prisma.socialAccount.update({
+        where: { id: existingAccount.id },
+        data: socialAccountData,
+      });
+    } else {
+      await prisma.socialAccount.create({
+        data: { userId: user.id, platform: "linkedin", ...socialAccountData },
+      });
+    }
 
     const res = NextResponse.redirect(new URL("/dashboard/settings?linkedin=connected", req.url));
     res.cookies.delete("li_oauth_state");
