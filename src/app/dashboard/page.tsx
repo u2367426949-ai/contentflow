@@ -2,8 +2,7 @@
 
 import { useState, useEffect, FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { useUser } from "@clerk/nextjs";
-import { useAuth } from "@clerk/nextjs";
+import { useUser, useAuth } from "@clerk/nextjs";
 import {
   Loader2,
   Plus,
@@ -11,6 +10,8 @@ import {
   FileText,
   Sparkles,
   ArrowRight,
+  Zap,
+  Clock,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -55,14 +56,15 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState("");
+  const [quota, setQuota] = useState<{ plan: string; generationCount: number } | null>(null);
 
   useEffect(() => {
-    if (isLoaded && !isSignedIn) {
-      router.push("/sign-in");
-      return;
-    }
     if (isLoaded && isSignedIn) {
       fetchProjects();
+      fetchQuota();
+    }
+    if (isLoaded && !isSignedIn) {
+      router.push("/sign-in");
     }
   }, [isLoaded, isSignedIn]);
 
@@ -81,6 +83,16 @@ export default function DashboardPage() {
     } finally {
       setLoading(false);
     }
+  }
+
+  async function fetchQuota() {
+    try {
+      const token = await getToken();
+      const res = await fetch("/api/user/me", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) setQuota(await res.json());
+    } catch { /* silent */ }
   }
 
   async function handleSubmit(e: FormEvent) {
@@ -142,70 +154,109 @@ export default function DashboardPage() {
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         {/* Header */}
         <div className="mb-10">
-          <h1 className="text-3xl font-bold text-foreground mb-2">
+          <h1 className="text-3xl font-bold text-foreground mb-2 tracking-tight">
             Dashboard
           </h1>
-          <p className="text-muted-foreground">
-            Collez une URL d&apos;article pour générer vos posts réseaux sociaux
+          <p className="text-muted">
+            Collez une URL d&apos;article pour générer vos posts en un clic.
           </p>
         </div>
 
         {/* URL Input */}
         <form onSubmit={handleSubmit} className="mb-12">
-          <div className="flex flex-col sm:flex-row gap-3">
-            <div className="flex-1 relative">
-              <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
-                <ExternalLink className="w-4 h-4 text-muted-foreground" />
+          <div className="p-1 bg-card border border-border rounded-2xl shadow-sm">
+            <div className="flex flex-col sm:flex-row gap-3 p-3">
+              <div className="flex-1 relative">
+                <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
+                  <ExternalLink className="w-4 h-4 text-muted" />
+                </div>
+                <input
+                  type="url"
+                  value={url}
+                  onChange={(e) => setUrl(e.target.value)}
+                  placeholder="https://exemple.com/article"
+                  className="w-full pl-11 pr-4 py-3 bg-transparent text-foreground placeholder:text-muted-foreground outline-none text-sm"
+                  disabled={creating}
+                />
               </div>
-              <input
-                type="url"
-                value={url}
-                onChange={(e) => setUrl(e.target.value)}
-                placeholder="https://exemple.com/article"
-                className="w-full pl-11 pr-4 py-3.5 bg-card border border-border text-foreground placeholder:text-muted-foreground rounded-xl focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/50 transition-all"
-                disabled={creating}
-              />
+              <button
+                type="submit"
+                disabled={creating || !url.trim()}
+                className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-accent text-white font-medium text-sm hover:bg-accent-hover transition-all disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap shadow-sm shadow-accent/20"
+              >
+                {creating ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Analyse...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4" />
+                    Générer
+                  </>
+                )}
+              </button>
             </div>
-            <button
-              type="submit"
-              disabled={creating || !url.trim()}
-              className="inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-accent text-accent-foreground font-medium hover:bg-accent-hover transition-all disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
-            >
-              {creating ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Analyse...
-                </>
-              ) : (
-                <>
-                  <Sparkles className="w-4 h-4" />
-                  Générer
-                </>
-              )}
-            </button>
           </div>
           {error && (
             <p className="mt-3 text-sm text-error">{error}</p>
           )}
         </form>
 
+        {/* Quick stats */}
+        {projects.length > 0 && (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-10">
+            <div className="p-4 rounded-xl bg-card border border-border/50">
+              <div className="text-2xl font-bold text-foreground">{projects.length}</div>
+              <div className="text-xs text-muted mt-1">Projets</div>
+            </div>
+            <div className="p-4 rounded-xl bg-card border border-border/50">
+              <div className="text-2xl font-bold text-success">
+                {projects.filter((p) =>
+                  p.generations.some((g) => g.status === "completed")
+                ).length}
+              </div>
+              <div className="text-xs text-muted mt-1">Générés</div>
+            </div>
+            <div className="p-4 rounded-xl bg-card border border-border/50">
+              <div className="text-2xl font-bold text-accent">
+                {projects.reduce(
+                  (acc, p) => acc + p.generations.filter((g) => g.status === "completed").length,
+                  0
+                )}
+              </div>
+              <div className="text-xs text-muted mt-1">Posts créés</div>
+            </div>
+            <div className="p-4 rounded-xl bg-card border border-border/50">
+              <div className="text-2xl font-bold text-foreground">
+                {quota && quota.plan === "free"
+                  ? `${3 - quota.generationCount}`
+                  : "∞"}
+              </div>
+              <div className="text-xs text-muted mt-1">
+                {quota && quota.plan === "free" ? "Restantes" : "Générations"}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Projects List */}
-        <div className="space-y-3">
-          <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
-            <FileText className="w-5 h-5 text-accent" />
+        <div className="space-y-2">
+          <h2 className="text-sm font-semibold text-muted uppercase tracking-wider mb-4 flex items-center gap-2">
+            <FileText className="w-4 h-4" />
             Projets récents
           </h2>
 
           {projects.length === 0 ? (
-            <div className="text-center py-16 bg-card rounded-2xl border border-border">
-              <div className="w-12 h-12 rounded-xl bg-accent/10 flex items-center justify-center mx-auto mb-4">
-                <Plus className="w-6 h-6 text-accent" />
+            <div className="text-center py-20 bg-card rounded-2xl border border-border">
+              <div className="w-14 h-14 rounded-2xl bg-accent/10 flex items-center justify-center mx-auto mb-5">
+                <Zap className="w-7 h-7 text-accent" />
               </div>
-              <p className="text-muted-foreground mb-2">
-                Aucun projet pour le moment
+              <p className="text-foreground font-medium mb-2">
+                Prêt à créer votre premier projet ?
               </p>
-              <p className="text-sm text-muted-foreground">
-                Collez une URL ci-dessus pour commencer
+              <p className="text-sm text-muted max-w-sm mx-auto">
+                Collez l&apos;URL d&apos;un article ci-dessus et laissez l&apos;IA faire la magie.
               </p>
             </div>
           ) : (
@@ -213,38 +264,39 @@ export default function DashboardPage() {
               <Link
                 key={project.id}
                 href={`/dashboard/${project.id}`}
-                className="block p-5 bg-card border border-border rounded-xl hover:border-accent/30 hover:bg-card-hover transition-all group"
+                className="block p-5 bg-card border border-border/50 rounded-xl hover:border-accent/20 hover:bg-card-hover transition-all group"
               >
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-4">
                   <div className="min-w-0 flex-1">
-                    <h3 className="text-foreground font-medium truncate">
+                    <h3 className="text-foreground font-medium truncate text-sm">
                       {project.title}
                     </h3>
                     {project.originalUrl && (
-                      <p className="text-sm text-muted-foreground truncate mt-1">
+                      <p className="text-xs text-muted truncate mt-1">
                         {project.originalUrl}
                       </p>
                     )}
-                    <div className="flex items-center gap-3 mt-3">
+                    <div className="flex items-center gap-3 mt-2.5">
                       {project.generations.map((gen) => (
                         <span
                           key={gen.platform}
-                          className={`inline-flex items-center gap-1 text-xs ${getPlatformStatusColor(gen.status)}`}
+                          className={`inline-flex items-center gap-1 text-[11px] font-medium ${getPlatformStatusColor(
+                            gen.status
+                          )}`}
                         >
                           {platformIcons[gen.platform]}
-                          <span className="capitalize">{gen.platform}</span>
+                          <span className="capitalize hidden sm:inline">{gen.platform}</span>
                         </span>
                       ))}
-                      <span className="text-xs text-muted-foreground">
+                      <span className="text-[11px] text-muted-foreground ml-auto">
                         {new Date(project.createdAt).toLocaleDateString("fr-FR", {
                           day: "numeric",
                           month: "short",
-                          year: "numeric",
                         })}
                       </span>
                     </div>
                   </div>
-                  <ArrowRight className="w-5 h-5 text-muted-foreground group-hover:text-accent transition-colors ml-4 shrink-0" />
+                  <ArrowRight className="w-4 h-4 text-muted-foreground group-hover:text-accent transition-colors shrink-0" />
                 </div>
               </Link>
             ))

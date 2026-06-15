@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
+
 import prisma from "@/lib/prisma";
 import { extractUrlContent } from "@/lib/url-extractor";
+import { getUserId } from "@/lib/auth";
 
 export async function GET(req: NextRequest) {
-  const { userId } = await auth();
+  const userId = await getUserId();
   if (!userId) {
     return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
   }
@@ -25,7 +26,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const { userId: clerkId } = await auth();
+  const clerkId = await getUserId();
   if (!clerkId) {
     return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
   }
@@ -46,51 +47,58 @@ export async function POST(req: NextRequest) {
 
     if (originalUrl) {
       try {
-        text = await extractUrlContent(originalUrl);
-        // Extract a title from the URL or content
-        const urlObj = new URL(originalUrl);
-        const pathParts = urlObj.pathname.split("/").filter(Boolean);
+        const extracted = await extractUrlContent(originalUrl);
+        text = extracted.text;
+        // Use extracted title, fallback to URL-based title
         title =
-          pathParts
-            .pop()
-            ?.replace(/[-_]/g, " ")
-            .replace(/\b\w/g, (c) => c.toUpperCase()) || "Article importé";
-      } catch (err) {
-        return NextResponse.json(
-          { error: "Impossible d'extraire le contenu de cette URL" },
-          { status: 400 }
-        );
+          extracted.title ||
+          originalUrl.split("/").pop()?.replace(/-/g, " ") ||
+          originalUrl;
+      } catch {
+        text = `URL: ${originalUrl}`;
+        title = originalUrl.split("/").pop()?.replace(/-/g, " ") || originalUrl;
       }
     }
 
+    if (!text.trim()) {
+      return NextResponse.json(
+        { error: "Impossible d'extraire le contenu de cette URL" },
+        { status: 400 }
+      );
+    }
+    // Create the project (without nested create to avoid transactions)
     const project = await prisma.contentProject.create({
       data: {
         userId: user.id,
         title,
         originalUrl: originalUrl || null,
-        sourceText: text || null,
-        generations: {
-          createMany: {
-            data: [
-              { platform: "linkedin", tone: "professionnel" },
-              { platform: "twitter", tone: "concis" },
-              { platform: "instagram", tone: "engageant" },
-            ],
-          },
-        },
-      },
-      include: {
-        generations: {
-          select: { platform: true, status: true },
-        },
+        sourceText: text,
       },
     });
 
-    return NextResponse.json(project, { status: 201 });
-  } catch (err) {
-    console.error("Create project error:", err);
+    // Create generations individually (createMany uses transactions, not supported in HTTP mode)
+    for (const platform of ["linkedin", "twitter", "instagram"]) {
+      await prisma.generation.create({
+        data: {
+          projectId: project.id,
+          platform,
+          status: "pending",
+        },
+      });
+    }
+
+    // Fetch the complete project with generations
+    const completeProject = await prisma.contentProject.findUnique({
+      where: { id: project.id },
+      include: { generations: true },
+    });
+
+    return NextResponse.json(completeProject, { status: 201 });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error("Error creating project:", message);
     return NextResponse.json(
-      { error: "Erreur lors de la création du projet" },
+      { error: `Erreur: ${message}` },
       { status: 500 }
     );
   }

@@ -15,8 +15,12 @@ import {
   RefreshCw,
   AlertCircle,
   FileText,
+  Calendar,
+  Lock,
+  Crown,
 } from "lucide-react";
 import Link from "next/link";
+import { ScheduleModal } from "@/components/ScheduleModal";
 
 const linkedinIcon = (
   <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
@@ -85,6 +89,9 @@ export default function ProjectDetailPage() {
   const [activeTab, setActiveTab] = useState<string>("linkedin");
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const [tone, setTone] = useState("professionnel");
+  const [isPro, setIsPro] = useState(false);
+  const [scheduleModal, setScheduleModal] = useState<{ open: boolean; platform: string; content: string }>({ open: false, platform: "", content: "" });
 
   useEffect(() => {
     if (isLoaded && !isSignedIn) {
@@ -93,8 +100,17 @@ export default function ProjectDetailPage() {
     }
     if (isLoaded && isSignedIn) {
       fetchProject();
+      fetchPlan();
     }
   }, [isLoaded, isSignedIn]);
+
+  async function fetchPlan() {
+    try {
+      const res = await fetch("/api/user/me");
+      const data = await res.json();
+      setIsPro(data.plan === "pro");
+    } catch { /* ignore */ }
+  }
 
   async function fetchProject() {
     try {
@@ -133,7 +149,7 @@ export default function ProjectDetailPage() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ projectId: params.id }),
+        body: JSON.stringify({ projectId: params.id, tone }),
       });
 
       if (!res.ok) {
@@ -148,6 +164,17 @@ export default function ProjectDetailPage() {
     } finally {
       setGenerating(false);
     }
+  }
+
+  async function handleSchedule(date: Date) {
+    const token = await getToken();
+    const projectId = params.id as string;
+    await fetch("/api/schedule", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: "Bearer " + (token || "") },
+      body: JSON.stringify({ projectId, platform: scheduleModal.platform, content: scheduleModal.content, tone: tone, scheduledAt: date.toISOString() }),
+    });
+    setScheduleModal({ open: false, platform: "", content: "" });
   }
 
   async function handleDelete() {
@@ -256,6 +283,22 @@ export default function ProjectDetailPage() {
 
         {/* Generate Button */}
         <div className="mb-10">
+          <div className="flex items-center gap-3 mb-4">
+            <span className="text-xs text-muted font-medium">Ton :</span>
+            <div className="flex flex-wrap gap-1.5">
+              {[
+                { value: "professionnel", label: "Pro" },
+                { value: "decontracte", label: "Décontracté" },
+                { value: "humoristique", label: "Humoristique" },
+                { value: "inspirant", label: "Inspirant" },
+                { value: "viral", label: "Viral" },
+              ].map((t) => (
+                <button key={t.value} onClick={() => setTone(t.value)}
+                  className={`px-3 py-1.5 text-xs rounded-lg font-medium transition-all ${tone === t.value ? "bg-accent text-white shadow-sm" : "bg-surface text-muted-foreground hover:text-foreground hover:bg-surface-hover border border-border/50"}`}
+                >{t.label}</button>
+              ))}
+            </div>
+          </div>
           <button
             onClick={handleGenerate}
             disabled={generating}
@@ -370,27 +413,55 @@ export default function ProjectDetailPage() {
 
                   {activeGeneration.status === "completed" &&
                     activeGeneration.content && (
-                      <div className="relative group">
-                        <div className="prose prose-invert max-w-none whitespace-pre-wrap text-foreground leading-relaxed">
-                          {activeGeneration.content}
+                      <>
+                        <div className="relative group">
+                          <div className="prose prose-invert max-w-none whitespace-pre-wrap text-foreground leading-relaxed">
+                            {activeGeneration.content}
+                          </div>
+                          <button
+                            onClick={() => handleCopy(activeGeneration.content!, activeGeneration.id)}
+                            className="absolute top-0 right-0 p-2 rounded-lg bg-surface border border-border text-muted-foreground hover:text-foreground hover:bg-surface-hover transition-all opacity-0 group-hover:opacity-100"
+                            title="Copier"
+                          >
+                            {copiedId === activeGeneration.id ? (
+                              <Check className="w-4 h-4 text-success" />
+                            ) : (
+                              <Copy className="w-4 h-4" />
+                            )}
+                          </button>
                         </div>
-                        <button
-                          onClick={() =>
-                            handleCopy(
-                              activeGeneration.content!,
-                              activeGeneration.id
-                            )
-                          }
-                          className="absolute top-0 right-0 p-2 rounded-lg bg-surface border border-border text-muted-foreground hover:text-foreground hover:bg-surface-hover transition-all opacity-0 group-hover:opacity-100"
-                          title="Copier"
-                        >
-                          {copiedId === activeGeneration.id ? (
-                            <Check className="w-4 h-4 text-success" />
+                        <div className="flex items-center gap-4 mt-3">
+                          <button
+                            onClick={() => handleGenerate()}
+                            disabled={generating}
+                            className="text-xs text-muted-foreground hover:text-accent transition-colors inline-flex items-center gap-1"
+                          >
+                            <RefreshCw className="w-3 h-3" />
+                            Régénérer
+                          </button>
+                          {isPro ? (
+                            <button
+                              onClick={() => setScheduleModal({ open: true, platform: activeGeneration.platform, content: activeGeneration.content! })}
+                              disabled={generating}
+                              className="text-xs text-accent hover:text-accent-hover transition-colors inline-flex items-center gap-1 font-medium"
+                            >
+                              <Calendar className="w-3 h-3" />
+                              Programmer
+                            </button>
                           ) : (
-                            <Copy className="w-4 h-4" />
+                            <span
+                              className="text-xs text-muted-foreground/40 inline-flex items-center gap-1 cursor-not-allowed select-none"
+                              title="Réservé au plan Pro"
+                            >
+                              <Lock className="w-3 h-3" />
+                              Programmer
+                              <Link href="/upgrade" className="ml-1 text-[10px] text-accent/60 hover:text-accent transition-colors cursor-pointer">
+                                <Crown className="w-3 h-3 inline" />
+                              </Link>
+                            </span>
                           )}
-                        </button>
-                      </div>
+                        </div>
+                      </>
                     )}
                 </>
               ) : (
@@ -404,6 +475,7 @@ export default function ProjectDetailPage() {
           </div>
         )}
       </div>
+      <ScheduleModal isOpen={scheduleModal.open} onClose={() => setScheduleModal({ open: false, platform: "", content: "" })} onSchedule={handleSchedule} platform={scheduleModal.platform} contentPreview={scheduleModal.content} />
     </div>
   );
 }

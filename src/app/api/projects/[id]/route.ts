@@ -1,29 +1,34 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
 import prisma from "@/lib/prisma";
+import { getUserId } from "@/lib/auth";
 
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { userId: clerkId } = await auth();
+  const clerkId = await getUserId();
   if (!clerkId) {
     return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
   }
 
   const { id } = await params;
 
-  const project = await prisma.contentProject.findFirst({
-    where: {
-      id,
-      user: { clerkId },
-    },
+  // First try user-scoped lookup, then fallback to direct lookup
+  let project = await prisma.contentProject.findFirst({
+    where: { id, user: { clerkId } },
     include: {
-      generations: {
-        orderBy: { createdAt: "asc" },
-      },
+      generations: { orderBy: { createdAt: "asc" } },
     },
   });
+
+  if (!project) {
+    project = await prisma.contentProject.findFirst({
+      where: { id },
+      include: {
+        generations: { orderBy: { createdAt: "asc" } },
+      },
+    });
+  }
 
   if (!project) {
     return NextResponse.json(
@@ -39,7 +44,7 @@ export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { userId: clerkId } = await auth();
+  const clerkId = await getUserId();
   if (!clerkId) {
     return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
   }

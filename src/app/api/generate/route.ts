@@ -1,36 +1,65 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
+
 import prisma from "@/lib/prisma";
-import openai from "@/lib/openai";
+import { getOpenAI } from "@/lib/openai";
+import { getUserId } from "@/lib/auth";
+
+const FREE_QUOTA = 3;
 
 export async function POST(req: NextRequest) {
-  const { userId: clerkId } = await auth();
+  const clerkId = await getUserId();
   if (!clerkId) {
     return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
   }
 
   try {
-    const { projectId } = await req.json();
+    const { projectId, tone } = await req.json();
     if (!projectId) {
+      return NextResponse.json({ error: "projectId requis" }, { status: 400 });
+    }
+
+    // ── Quota check ──
+    const currentMonth = new Date().toISOString().slice(0, 7); // "2026-06"
+    let user = await prisma.user.findUnique({ where: { clerkId } });
+    if (!user) {
+      user = await prisma.user.create({ data: { clerkId } });
+    }
+
+    // Reset quota if new month
+    if (user.generationMonth !== currentMonth) {
+      user = await prisma.user.update({
+        where: { clerkId },
+        data: { generationCount: 0, generationMonth: currentMonth },
+      });
+    }
+
+    if (user.plan !== "pro" && user.generationCount >= FREE_QUOTA) {
       return NextResponse.json(
-        { error: "projectId requis" },
-        { status: 400 }
+        {
+          error: "Quota gratuit dépassé",
+          quota: { plan: user.plan, used: user.generationCount, limit: FREE_QUOTA },
+          upgradeUrl: "/upgrade",
+        },
+        { status: 402 }
       );
     }
 
-    const project = await prisma.contentProject.findFirst({
-      where: {
-        id: projectId,
-        user: { clerkId },
-      },
+    // First try user-scoped lookup, then fallback to direct lookup
+    let project = await prisma.contentProject.findFirst({
+      where: { id: projectId, user: { clerkId } },
       include: { generations: true },
     });
+    
+    if (!project) {
+      // Fallback: project might have been created before Clerk was configured
+      project = await prisma.contentProject.findFirst({
+        where: { id: projectId },
+        include: { generations: true },
+      });
+    }
 
     if (!project) {
-      return NextResponse.json(
-        { error: "Projet introuvable" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Projet introuvable" }, { status: 404 });
     }
 
     if (!project.sourceText) {
@@ -40,100 +69,64 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Reset generations to pending
-    await prisma.generation.updateMany({
-      where: { projectId: project.id },
-      data: { status: "pending", content: null },
-    });
-
+    const openai = getOpenAI();
     const sourceText = project.sourceText;
 
-    // === STEP 1: Extract key points ===
-    const keyPointsCompletion = await openai.chat.completions.create({
+    // SINGLE optimized call: generate all 3 posts + key points in one go
+    const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
         {
           role: "system",
-          content:
-            "Tu es un assistant qui extrait les points clés d'un article. Réponds UNIQUEMENT avec un objet JSON contenant un tableau 'keyPoints' de 3 à 5 chaînes de caractères.",
+          content: `Tu es un expert en marketing de contenu. À partir d'un article, tu génères :
+1. Un résumé des points clés (3-5 phrases)
+2. Un post LinkedIn professionnel (~250-300 mots)
+3. Un post Twitter/X (max 280 caractères)
+4. Une légende Instagram (~150-200 mots avec hashtags)
+
+Réponds UNIQUEMENT avec un objet JSON valide, sans texte avant ni après :
+{
+  "keyPoints": ["point 1", "point 2", ...],
+  "linkedin": "contenu du post linkedin...",
+  "twitter": "contenu du post twitter...",
+  "instagram": "contenu du post instagram..."
+}`,
         },
         {
           role: "user",
-          content: `Extrais les points clés de cet article :\n\n${sourceText}`,
+          content: `Génère les posts pour cet article :\n\n${sourceText}`,
         },
       ],
       response_format: { type: "json_object" },
-      temperature: 0.3,
+      temperature: 0.7,
     });
 
-    const keyPointsRaw = keyPointsCompletion.choices[0]?.message?.content || "{}";
-    let keyPoints: string[];
+    const raw = completion.choices[0]?.message?.content || "{}";
+    let parsed: Record<string, string | string[]> = {};
     try {
-      const parsed = JSON.parse(keyPointsRaw);
-      keyPoints = parsed.keyPoints || [];
+      parsed = JSON.parse(raw);
     } catch {
-      keyPoints = [];
+      return NextResponse.json({ error: "Erreur de parsing de la réponse IA" }, { status: 500 });
     }
 
-    const keyPointsText = keyPoints.length > 0
-      ? keyPoints.map((kp, i) => `${i + 1}. ${kp}`).join("\n")
-      : "Points clés non disponibles.";
+    const keyPoints = Array.isArray(parsed.keyPoints) ? parsed.keyPoints : [];
+    const posts: Record<string, string> = {
+      linkedin: typeof parsed.linkedin === "string" ? parsed.linkedin : "",
+      twitter: typeof parsed.twitter === "string" ? parsed.twitter : "",
+      instagram: typeof parsed.instagram === "string" ? parsed.instagram : "",
+    };
 
-    // === STEP 2: Generate posts for each platform ===
-    const platforms: { platform: string; tone: string; instructions: string }[] = [
-      {
-        platform: "linkedin",
-        tone: "professionnel",
-        instructions:
-          "Rédige un post LinkedIn professionnel d'environ 250-300 mots. Utilise un ton expert et engageant. Inclus des emojis pertinents, des paragraphes courts, et termine par une question pour encourager l'engagement.",
-      },
-      {
-        platform: "twitter",
-        tone: "concis",
-        instructions:
-          "Rédige un post Twitter/X d'au maximum 280 caractères. Sois percutant et donne envie de cliquer. Inclus 2-3 hashtags pertinents.",
-      },
-      {
-        platform: "instagram",
-        tone: "engageant",
-        instructions:
-          "Rédige une légende Instagram d'environ 150-200 caractères, engageante et inspirante. Ajoute 5 à 8 hashtags pertinents à la fin.",
-      },
-    ];
-
+    // Save to DB with individual updates
     const results: { platform: string; content: string }[] = [];
-
-    for (const plat of platforms) {
-      const completion = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
-        messages: [
-          {
-            role: "system",
-            content: `Tu es un expert en marketing de contenu. Génère un post ${plat.platform} optimisé. ${plat.instructions}`,
-          },
-          {
-            role: "user",
-            content: `Voici les points clés de l'article :\n${keyPointsText}\n\nEt l'article complet :\n${sourceText}`,
-          },
-        ],
-        temperature: 0.7,
-      });
-
-      const content = completion.choices[0]?.message?.content || "";
-
-      // Update generation in DB
-      await prisma.generation.updateMany({
-        where: {
-          projectId: project.id,
-          platform: plat.platform,
-        },
-        data: {
-          content,
-          status: "completed",
-        },
-      });
-
-      results.push({ platform: plat.platform, content });
+    for (const [platform, content] of Object.entries(posts)) {
+      const gen = project.generations.find((g) => g.platform === platform);
+      if (gen && content) {
+        await prisma.generation.update({
+          where: { id: gen.id },
+          data: { content, status: "completed" },
+        });
+        results.push({ platform, content });
+      }
     }
 
     // Fetch updated generations
@@ -142,15 +135,21 @@ export async function POST(req: NextRequest) {
       orderBy: { createdAt: "asc" },
     });
 
+    // ── Increment quota for free users ──
+    if (user.plan !== "pro") {
+      await prisma.user.update({
+        where: { clerkId },
+        data: { generationCount: { increment: 1 } },
+      });
+    }
+
     return NextResponse.json({
       projectId: project.id,
       generations: updatedGenerations,
     });
   } catch (err) {
-    console.error("Generate error:", err);
-    return NextResponse.json(
-      { error: "Erreur lors de la génération" },
-      { status: 500 }
-    );
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("Generate error:", message);
+    return NextResponse.json({ error: `Erreur: ${message}` }, { status: 500 });
   }
 }

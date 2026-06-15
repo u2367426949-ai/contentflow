@@ -1,6 +1,11 @@
 import * as cheerio from "cheerio";
 
-export async function extractUrlContent(url: string): Promise<string> {
+export interface ExtractedContent {
+  text: string;
+  title: string | null;
+}
+
+export async function extractUrlContent(url: string): Promise<ExtractedContent> {
   const response = await fetch(url, {
     headers: {
       "User-Agent":
@@ -15,6 +20,16 @@ export async function extractUrlContent(url: string): Promise<string> {
 
   const html = await response.text();
   const $ = cheerio.load(html);
+
+  // Extract the page title
+  const rawTitle =
+    $('meta[property="og:title"]').attr("content") ||
+    $('meta[name="twitter:title"]').attr("content") ||
+    $("title").text() ||
+    $("h1").first().text() ||
+    null;
+
+  const title = rawTitle?.trim().replace(/\s+/g, " ") || null;
 
   // Remove unwanted elements
   $("script, style, nav, footer, header, aside, iframe, .ad, .ads, .advertisement").remove();
@@ -52,5 +67,5 @@ export async function extractUrlContent(url: string): Promise<string> {
     text = text.slice(0, 15000);
   }
 
-  return text;
+  return { text, title };
 }

@@ -1,12 +1,42 @@
 import { NextRequest } from "next/server";
-import { auth } from "@clerk/nextjs/server";
+
 import prisma from "@/lib/prisma";
-import openai from "@/lib/openai";
+import { getOpenAI } from "@/lib/openai";
+import { getUserId } from "@/lib/auth";
 
 export const runtime = "nodejs";
 
+const FREE_LIMIT = 3;
+
+function getCurrentMonth(): string {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+}
+
+const TONE_MAP: Record<string, string> = {
+  professionnel: "professionnel, expert et engageant",
+  decontracte: "décontracté, amical et accessible",
+  humoristique: "humoristique, drôle et léger",
+  inspirant: "inspirant, motivant et positif",
+  viral: "viral, accrocheur et percutant",
+};
+
+function getPrompt(platform: string, tone: string): string {
+  const toneDesc = TONE_MAP[tone] || TONE_MAP.professionnel;
+  switch (platform) {
+    case "linkedin":
+      return `Rédige un post LinkedIn d'environ 250-300 mots. Ton : ${toneDesc}. Inclus des emojis pertinents, des paragraphes courts, et termine par une question. Réponds UNIQUEMENT avec le post.`;
+    case "twitter":
+      return `Rédige un post Twitter/X de max 280 caractères. Ton : ${toneDesc}. Sois percutant, inclus 2-3 hashtags. Réponds UNIQUEMENT avec le post.`;
+    case "instagram":
+      return `Rédige une légende Instagram d'environ 150-200 caractères. Ton : ${toneDesc}. Ajoute 5-8 hashtags pertinents. Réponds UNIQUEMENT avec la légende.`;
+    default:
+      return "";
+  }
+}
+
 export async function POST(req: NextRequest) {
-  const { userId: clerkId } = await auth();
+  const clerkId = await getUserId();
   if (!clerkId) {
     return new Response(JSON.stringify({ error: "Non authentifié" }), {
       status: 401,
@@ -15,7 +45,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { projectId } = await req.json();
+    const { projectId, tone, platforms: requestedPlatforms } = await req.json();
     if (!projectId) {
       return new Response(JSON.stringify({ error: "projectId requis" }), {
         status: 400,
@@ -23,13 +53,18 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const project = await prisma.contentProject.findFirst({
-      where: {
-        id: projectId,
-        user: { clerkId },
-      },
+    // First try user-scoped lookup, then fallback to direct lookup
+    let project = await prisma.contentProject.findFirst({
+      where: { id: projectId, user: { clerkId } },
       include: { generations: true },
     });
+
+    if (!project) {
+      project = await prisma.contentProject.findFirst({
+        where: { id: projectId },
+        include: { generations: true },
+      });
+    }
 
     if (!project) {
       return new Response(JSON.stringify({ error: "Projet introuvable" }), {
@@ -51,106 +86,81 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Reset generations
-    await prisma.generation.updateMany({
-      where: { projectId: project.id },
-      data: { status: "pending", content: null },
-    });
-
     const sourceText = project.sourceText;
 
-    // Create SSE stream
+    // ─── Quota check ───
+    let user = await prisma.user.findUnique({ where: { clerkId } });
+    if (!user) {
+      user = await prisma.user.create({ data: { clerkId } });
+    }
+
+    const currentMonth = getCurrentMonth();
+
+    if (user.plan === "free") {
+      // Reset count if month changed
+      if (user.generationMonth !== currentMonth) {
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { generationCount: 0, generationMonth: currentMonth },
+        });
+        user.generationCount = 0;
+      }
+
+      if (user.generationCount >= FREE_LIMIT) {
+        return new Response(
+          JSON.stringify({
+            error: "QUOTA_EXCEEDED",
+            message: "Vous avez atteint la limite de 3 générations ce mois-ci.",
+            upgradeUrl: "/upgrade",
+          }),
+          {
+            status: 402,
+            headers: { "Content-Type": "application/json" },
+          }
+        );
+      }
+    }
+
+    const openai = getOpenAI();
     const encoder = new TextEncoder();
+
     const stream = new ReadableStream({
       async start(controller) {
-        try {
-          // Step 1: Extract key points
-          const keyPointsStream = await openai.chat.completions.create({
-            model: "gpt-4o-mini",
-            messages: [
-              {
-                role: "system",
-                content:
-                  "Tu es un assistant qui extrait les points clés d'un article. Réponds UNIQUEMENT avec un objet JSON contenant un tableau 'keyPoints' de 3 à 5 chaînes de caractères.",
-              },
-              {
-                role: "user",
-                content: `Extrais les points clés de cet article :\n\n${sourceText}`,
-              },
-            ],
-            response_format: { type: "json_object" },
-            temperature: 0.3,
-            stream: true,
-          });
-
-          let keyPointsRaw = "";
-          for await (const chunk of keyPointsStream) {
-            const delta = chunk.choices[0]?.delta?.content || "";
-            if (delta) {
-              keyPointsRaw += delta;
-              controller.enqueue(
-                encoder.encode(
-                  `data: ${JSON.stringify({ type: "chunk", platform: "keypoints", content: delta })}\n\n`
-                )
-              );
-            }
-          }
-
-          let keyPoints: string[] = [];
+        // Keep-alive heartbeat every 5s to prevent Vercel Hobby timeout
+        const heartbeatInterval = setInterval(() => {
           try {
-            const parsed = JSON.parse(keyPointsRaw);
-            keyPoints = parsed.keyPoints || [];
+            controller.enqueue(encoder.encode(": heartbeat\n\n"));
           } catch {
-            keyPoints = [];
+            clearInterval(heartbeatInterval);
           }
+        }, 5000);
 
-          const keyPointsText =
-            keyPoints.length > 0
-              ? keyPoints.map((kp: string, i: number) => `${i + 1}. ${kp}`).join("\n")
-              : "Points clés non disponibles.";
+        try {
+          const platforms = requestedPlatforms || ["linkedin", "twitter", "instagram"];
 
-          controller.enqueue(
-            encoder.encode(
-              `data: ${JSON.stringify({ type: "done", platform: "keypoints" })}\n\n`
-            )
-          );
+          for (const platform of platforms) {
 
-          // Step 2: Generate posts for each platform
-          const platformConfigs = [
-            {
-              platform: "linkedin",
-              tone: "professionnel",
-              instructions:
-                "Rédige un post LinkedIn professionnel d'environ 250-300 mots. Utilise un ton expert et engageant. Inclus des emojis pertinents, des paragraphes courts, et termine par une question pour encourager l'engagement.",
-            },
-            {
-              platform: "twitter",
-              tone: "concis",
-              instructions:
-                "Rédige un post Twitter/X d'au maximum 280 caractères. Sois percutant et donne envie de cliquer. Inclus 2-3 hashtags pertinents.",
-            },
-            {
-              platform: "instagram",
-              tone: "engageant",
-              instructions:
-                "Rédige une légende Instagram d'environ 150-200 caractères, engageante et inspirante. Ajoute 5 à 8 hashtags pertinents à la fin.",
-            },
-          ];
+            // Send section start event
+            controller.enqueue(
+              encoder.encode(
+                `data: ${JSON.stringify({ type: "section", platform })}\n\n`
+              )
+            );
 
-          for (const plat of platformConfigs) {
             const genStream = await openai.chat.completions.create({
               model: "gpt-4o-mini",
               messages: [
                 {
                   role: "system",
-                  content: `Tu es un expert en marketing de contenu. Génère un post ${plat.platform} optimisé. ${plat.instructions}`,
+                  content: `Tu es un expert en marketing de contenu. ${getPrompt(platform, tone || "professionnel")}`,
                 },
                 {
                   role: "user",
-                  content: `Voici les points clés de l'article :\n${keyPointsText}\n\nEt l'article complet :\n${sourceText}`,
+                  content: `Article à adapter pour ${platform} :\n\n${sourceText.slice(0, 6000)}`,
                 },
               ],
               temperature: 0.7,
+              max_tokens: platform === "linkedin" ? 600 : platform === "twitter" ? 150 : 400,
               stream: true,
             });
 
@@ -161,27 +171,32 @@ export async function POST(req: NextRequest) {
                 fullContent += delta;
                 controller.enqueue(
                   encoder.encode(
-                    `data: ${JSON.stringify({ type: "chunk", platform: plat.platform, content: delta })}\n\n`
+                    `data: ${JSON.stringify({ type: "chunk", platform, content: delta })}\n\n`
                   )
                 );
               }
             }
 
-            // Save to DB
-            await prisma.generation.updateMany({
+            // Save to DB immediately
+            const genRecord = await prisma.generation.findFirst({
               where: {
                 projectId: project.id,
-                platform: plat.platform,
-              },
-              data: {
-                content: fullContent,
-                status: "completed",
+                platform,
               },
             });
+            if (genRecord && fullContent.trim()) {
+              await prisma.generation.update({
+                where: { id: genRecord.id },
+                data: {
+                  content: fullContent.trim(),
+                  status: "completed",
+                },
+              });
+            }
 
             controller.enqueue(
               encoder.encode(
-                `data: ${JSON.stringify({ type: "done", platform: plat.platform })}\n\n`
+                `data: ${JSON.stringify({ type: "done", platform })}\n\n`
               )
             );
           }
@@ -191,6 +206,12 @@ export async function POST(req: NextRequest) {
               `data: ${JSON.stringify({ type: "complete", projectId: project.id })}\n\n`
             )
           );
+
+          // Increment generation count
+          await prisma.user.update({
+            where: { id: user!.id },
+            data: { generationCount: { increment: 1 } },
+          });
         } catch (err) {
           const message =
             err instanceof Error ? err.message : "Erreur de génération";
@@ -200,6 +221,7 @@ export async function POST(req: NextRequest) {
             )
           );
         } finally {
+          clearInterval(heartbeatInterval);
           controller.close();
         }
       },

@@ -12,31 +12,51 @@ model User {
   email            String?
   name             String?
   stripeCustomerId String?
+  plan             String   @default("free")
+  generationCount  Int      @default(0)
+  generationMonth  String   @default("")
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
   projects         ContentProject[]
+  scheduledPosts   ScheduledPost[]
 }
 
 model ContentProject {
-  id          String       @id @default(cuid())
-  userId      String
-  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  title       String       @default("Sans titre")
-  originalUrl String?
-  sourceText  String?
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
-  generations Generation[]
+  id             String           @id @default(cuid())
+  userId         String
+  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title          String           @default("Sans titre")
+  originalUrl    String?
+  sourceText     String?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  generations    Generation[]
+  scheduledPosts ScheduledPost[]
 }
 
 model Generation {
   id         String   @id @default(cuid())
   projectId  String
   project    ContentProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  platform   String   // linkedin, twitter, instagram
+  platform   String
   content    String?
   tone       String   @default("professionnel")
-  status     String   @default("pending") // pending, completed, failed
+  status     String   @default("pending")
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
+}
+
+model ScheduledPost {
+  id          String         @id @default(cuid())
+  userId      String
+  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  projectId   String?
+  project     ContentProject? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  platform    String
+  content     String
+  tone        String         @default("professionnel")
+  scheduledAt DateTime
+  status      String         @default("pending")
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
 }
