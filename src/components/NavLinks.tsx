@@ -42,7 +42,7 @@ export function NavLinks() {
           >
             {link.label}
             {isActive && (
-              <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-5 h-0.5 rounded-full bg-accent" />
+              <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-5 h-0.5 rounded-full" style={{ background: "linear-gradient(90deg, #f97316, #fbbf24)" }} />
             )}
           </Link>
         );

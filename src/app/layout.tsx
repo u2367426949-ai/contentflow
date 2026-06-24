@@ -95,10 +95,12 @@ export default function RootLayout({
                         </button>
                       </SignInButton>
                       <SignUpButton mode="modal">
-                        <button className="group relative inline-flex items-center gap-2 text-sm font-semibold bg-accent text-white px-4 py-2 rounded-lg hover:bg-accent-hover transition-all shadow-md shadow-accent/20 hover:shadow-accent/30 overflow-hidden">
-                          <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
-                          <Zap className="w-3.5 h-3.5 relative z-10" />
-                          <span className="relative z-10">Essayer gratuitement</span>
+                        <button
+                          className="inline-flex items-center gap-2 text-sm font-bold text-black px-4 py-2 rounded-xl shadow-md hover:shadow-lg hover:opacity-90 transition-all"
+                          style={{ background: "linear-gradient(135deg, #f97316, #fbbf24)" }}
+                        >
+                          <Zap className="w-3.5 h-3.5" />
+                          Essayer gratuitement
                         </button>
                       </SignUpButton>
                     </Show>

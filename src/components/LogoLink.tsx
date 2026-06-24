@@ -12,12 +12,14 @@ export function LogoLink() {
       href={isSignedIn ? "/dashboard" : "/"}
       className="flex items-center gap-2.5 group shrink-0"
     >
-      <div className="relative w-8 h-8 rounded-lg bg-accent flex items-center justify-center group-hover:scale-105 transition-transform overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent" />
-        <Sparkles className="w-4 h-4 text-white relative z-10" />
+      <div
+        className="relative w-8 h-8 rounded-xl flex items-center justify-center group-hover:scale-105 transition-transform overflow-hidden"
+        style={{ background: "linear-gradient(135deg, #f97316, #fbbf24)" }}
+      >
+        <Sparkles className="w-4 h-4 text-black relative z-10" />
       </div>
-      <span className="font-bold text-base text-foreground tracking-tight">
-        ContentFlow<span className="text-accent">AI</span>
+      <span className="font-black text-base text-foreground tracking-tight">
+        Content<span style={{ color: "#f97316" }}>Flow</span>
       </span>
     </Link>
   );
