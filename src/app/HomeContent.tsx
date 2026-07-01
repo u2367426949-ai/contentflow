@@ -440,7 +440,7 @@ export default function HomeContent() {
       {/* ─── Footer ─── */}
       <footer className="border-t border-border py-12 px-4">
         <div className="max-w-7xl mx-auto">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-10">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-8 mb-10">
             <div>
               <div className="flex items-center gap-2 mb-4">
                 <div
@@ -464,6 +464,15 @@ export default function HomeContent() {
                 <Link href="/dashboard" className="block text-xs text-muted hover:text-foreground transition-colors">Dashboard</Link>
                 <Link href="/sign-up" className="block text-xs text-muted hover:text-foreground transition-colors">S&apos;inscrire</Link>
                 <Link href="/upgrade" className="block text-xs text-muted hover:text-foreground transition-colors">Tarifs</Link>
+              </div>
+            </div>
+
+            <div>
+              <h4 className="text-xs font-bold text-foreground uppercase tracking-wider mb-4">Outils</h4>
+              <div className="space-y-2">
+                <Link href="/outils/generateur-post-linkedin" className="block text-xs text-muted hover:text-foreground transition-colors">Générateur post LinkedIn</Link>
+                <Link href="/outils/generateur-post-twitter" className="block text-xs text-muted hover:text-foreground transition-colors">Générateur post X</Link>
+                <Link href="/alternatives/taplio" className="block text-xs text-muted hover:text-foreground transition-colors">Alternative à Taplio</Link>
               </div>
             </div>
 
