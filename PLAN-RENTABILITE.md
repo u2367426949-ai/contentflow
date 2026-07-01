@@ -4,6 +4,22 @@
 > autonome et livrable séparément. Lire d'abord la section « Contraintes » —
 > elles sont non négociables.
 
+## ✅ État d'exécution (2026-07-01, branche `claude/laughing-chaum-18e9de`)
+
+Toutes les phases ci-dessous ont été codées et commitées (7 commits, `npx tsc
+--noEmit` propre, zéro `.upsert()`) :
+- **Phase 1** — Performance Loop : 100% (backend + UI + nav).
+- **Phase 2** — 2.1 (annuel), 2.2 (paywall quota), 2.3 (upsell Pro) faits.
+  2.4 (emails cycle de vie) non fait — nécessite un compte Resend, listé en
+  action humaine.
+- **Phase 3** — 3.3 (copy) et 3.1 (SEO programmatique) faits. 3.2 : seul le
+  watermark free-plan est fait ; le programme de parrainage complet n'a
+  **pas** été codé (nécessite des décisions produit : anti-fraude,
+  automatisation des coupons Stripe — à cadrer séparément avant de coder).
+
+Reste à faire par un humain avant mise en prod, voir « Actions humaines »
+en bas de ce fichier (migration Neon, prix Stripe annuels, etc.).
+
 ## Contraintes techniques (à respecter dans TOUT le code)
 
 1. **JAMAIS `prisma.<model>.upsert()`** — l'adapter Neon HTTP (`@prisma/adapter-neon`,
@@ -201,8 +217,16 @@ Toutes gated par `getPlan(user.plan).analytics` (402 + `upgradeUrl` sinon) :
 3. Phase 3 selon l'appétit (3.3 est le plus rapide, 3.1 le plus rentable long terme).
 
 ## Actions humaines (non codables)
-- Déployer la migration Neon (`npx prisma migrate deploy`).
-- Créer les prix annuels Stripe + `STRIPE_PRICE_*_YEARLY` dans Vercel (Phase 2.1).
+- Déployer la migration Neon (`npx prisma migrate deploy` — inclut désormais
+  aussi `20260701_add_performance_loop`).
+- Créer les prix annuels Stripe (`STRIPE_PRICE_CREATOR_YEARLY`,
+  `STRIPE_PRICE_PRO_YEARLY`, `STRIPE_PRICE_AGENCY_YEARLY`) + les ajouter dans
+  Vercel (Phase 2.1 — sans ça le toggle annuel sur `/upgrade` renverra une
+  erreur 500 « price ID manquant » au clic).
 - Vérifier le tier de l'app X (les lectures de stats peuvent nécessiter le tier
   Basic) — la saisie manuelle couvre le cas contraire.
-- (Phase 2.4) Créer un compte Resend + `RESEND_API_KEY`.
+- (Phase 2.4, non codé) Créer un compte Resend + `RESEND_API_KEY` si les
+  emails de cycle de vie sont voulus.
+- (Phase 3.2, non codé) Cadrer le programme de parrainage avant de le coder :
+  mécanisme anti-fraude, génération/validation des codes, automatisation
+  Stripe (coupon + application au checkout).
