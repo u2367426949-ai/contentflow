@@ -6,6 +6,7 @@ import { getUserId } from "@/lib/auth";
 import { getPlan } from "@/lib/plans";
 import { buildVoiceInstruction } from "@/lib/brand-voice";
 import { buildPerformanceInstruction } from "@/lib/performance";
+import { applyWatermark } from "@/lib/watermark";
 
 export const runtime = "nodejs";
 
@@ -203,6 +204,21 @@ export async function POST(req: NextRequest) {
               }
             }
 
+            let finalContent = fullContent.trim();
+            if (finalContent && plan.id === "free") {
+              finalContent = applyWatermark(platform, finalContent);
+              const suffix = finalContent.startsWith(fullContent.trim())
+                ? finalContent.slice(fullContent.trim().length)
+                : "";
+              if (suffix) {
+                controller.enqueue(
+                  encoder.encode(
+                    `data: ${JSON.stringify({ type: "chunk", platform, content: suffix })}\n\n`
+                  )
+                );
+              }
+            }
+
             // Save to DB immediately
             const genRecord = await prisma.generation.findFirst({
               where: {
@@ -210,11 +226,11 @@ export async function POST(req: NextRequest) {
                 platform,
               },
             });
-            if (genRecord && fullContent.trim()) {
+            if (genRecord && finalContent) {
               await prisma.generation.update({
                 where: { id: genRecord.id },
                 data: {
-                  content: fullContent.trim(),
+                  content: finalContent,
                   status: "completed",
                   brandVoiceId: resolvedVoiceId,
                 },

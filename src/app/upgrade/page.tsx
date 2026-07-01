@@ -245,7 +245,8 @@ export default function UpgradePage() {
           <div className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-surface border border-border/50 text-sm text-muted">
             <Sparkles className="w-4 h-4 text-accent" />
             Plan Free : {PLANS.free.genQuota} générations/mois, publication
-            manuelle, sans style d&apos;écriture.
+            manuelle, sans style d&apos;écriture, posts signés « Généré avec
+            ContentFlow AI ».
           </div>
         </div>
 

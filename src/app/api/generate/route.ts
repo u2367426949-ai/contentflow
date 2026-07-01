@@ -6,6 +6,7 @@ import { getUserId } from "@/lib/auth";
 import { getPlan } from "@/lib/plans";
 import { buildVoiceInstruction } from "@/lib/brand-voice";
 import { buildPerformanceInstruction } from "@/lib/performance";
+import { applyWatermark } from "@/lib/watermark";
 
 export async function POST(req: NextRequest) {
   const clerkId = await getUserId();
@@ -142,6 +143,12 @@ Réponds UNIQUEMENT avec un objet JSON valide, sans texte avant ni après :
       twitter: typeof parsed.twitter === "string" ? parsed.twitter : "",
       instagram: typeof parsed.instagram === "string" ? parsed.instagram : "",
     };
+
+    if (plan.id === "free") {
+      for (const platform of Object.keys(posts)) {
+        if (posts[platform]) posts[platform] = applyWatermark(platform, posts[platform]);
+      }
+    }
 
     // Save to DB with individual updates
     const results: { platform: string; content: string }[] = [];
