@@ -5,6 +5,7 @@ import { getOpenAI } from "@/lib/openai";
 import { getUserId } from "@/lib/auth";
 import { getPlan } from "@/lib/plans";
 import { buildVoiceInstruction } from "@/lib/brand-voice";
+import { buildPerformanceInstruction } from "@/lib/performance";
 
 export async function POST(req: NextRequest) {
   const clerkId = await getUserId();
@@ -83,6 +84,18 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // ── Performance loop (Pro/Agency): lean into what already performs ──
+    let performanceInstruction = "";
+    if (plan.analytics) {
+      const insights = await prisma.performanceInsight.findMany({
+        where: { userId: user.id },
+      });
+      performanceInstruction = insights
+        .map((i) => buildPerformanceInstruction(i.insight, i.platform))
+        .filter(Boolean)
+        .join("\n\n");
+    }
+
     const openai = getOpenAI();
     const sourceText = project.sourceText;
 
@@ -97,7 +110,7 @@ export async function POST(req: NextRequest) {
 2. Un post LinkedIn professionnel (~250-300 mots)
 3. Un post Twitter/X (max 280 caractères)
 4. Une légende Instagram (~150-200 mots avec hashtags)
-${voiceInstruction ? `\n${voiceInstruction}\n` : ""}
+${voiceInstruction ? `\n${voiceInstruction}\n` : ""}${performanceInstruction ? `\n${performanceInstruction}\n` : ""}
 Réponds UNIQUEMENT avec un objet JSON valide, sans texte avant ni après :
 {
   "keyPoints": ["point 1", "point 2", ...],

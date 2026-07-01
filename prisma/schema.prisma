@@ -21,6 +21,7 @@ model User {
   scheduledPosts   ScheduledPost[]
   brandVoices      BrandVoice[]
   socialAccounts   SocialAccount[]
+  performanceInsights PerformanceInsight[]
 }
 
 model SocialAccount {
@@ -98,6 +99,29 @@ model ScheduledPost {
   status      String         @default("pending")
   publishedAt DateTime?
   error       String?
+  // ID of the post on the platform (tweet id / LinkedIn URN), set on publish.
+  externalId  String?
+  // Engagement metrics — auto-fetched (X) or manually entered (LinkedIn).
+  impressions Int?
+  likes       Int?
+  comments    Int?
+  shares      Int?
+  metricsAt   DateTime?
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
+}
+
+model PerformanceInsight {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  platform  String
+  // AI-extracted performance profile (JSON: hooks, topics, structure...).
+  insight   String
+  // How many measured posts the insight was computed from.
+  postCount Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, platform])
 }

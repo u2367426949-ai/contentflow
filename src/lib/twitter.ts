@@ -115,6 +115,51 @@ export async function getTwitterProfile(
   return { id: data.data.id, username: data.data.username, name: data.data.name };
 }
 
+export interface TweetMetrics {
+  impressions: number;
+  likes: number;
+  comments: number;
+  shares: number;
+}
+
+/**
+ * Fetch public engagement metrics for up to 100 tweets in one call.
+ * Uses the `tweet.read` scope already requested at connect time.
+ */
+export async function fetchTweetMetrics(
+  accessToken: string,
+  tweetIds: string[]
+): Promise<Record<string, TweetMetrics>> {
+  const result: Record<string, TweetMetrics> = {};
+  if (tweetIds.length === 0) return result;
+
+  const params = new URLSearchParams({
+    ids: tweetIds.slice(0, 100).join(","),
+    "tweet.fields": "public_metrics",
+  });
+
+  const res = await fetch(`https://api.x.com/2/tweets?${params.toString()}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`Récupération des stats X échouée : ${text || res.statusText}`);
+  }
+
+  const data = await res.json();
+  for (const tweet of data.data || []) {
+    const m = tweet.public_metrics || {};
+    result[tweet.id] = {
+      impressions: m.impression_count ?? 0,
+      likes: m.like_count ?? 0,
+      comments: m.reply_count ?? 0,
+      shares: (m.retweet_count ?? 0) + (m.quote_count ?? 0),
+    };
+  }
+  return result;
+}
+
 export async function publishToTwitter(accessToken: string, text: string): Promise<{ id: string }> {
   const res = await fetch("https://api.x.com/2/tweets", {
     method: "POST",

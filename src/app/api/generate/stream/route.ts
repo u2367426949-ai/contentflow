@@ -5,6 +5,7 @@ import { getOpenAI } from "@/lib/openai";
 import { getUserId } from "@/lib/auth";
 import { getPlan } from "@/lib/plans";
 import { buildVoiceInstruction } from "@/lib/brand-voice";
+import { buildPerformanceInstruction } from "@/lib/performance";
 
 export const runtime = "nodejs";
 
@@ -135,6 +136,17 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // ── Performance loop (Pro/Agency): lean into what already performs ──
+    const performanceByPlatform: Record<string, string> = {};
+    if (plan.analytics) {
+      const insights = await prisma.performanceInsight.findMany({
+        where: { userId: user.id },
+      });
+      for (const i of insights) {
+        performanceByPlatform[i.platform] = buildPerformanceInstruction(i.insight, i.platform);
+      }
+    }
+
     const openai = getOpenAI();
     const encoder = new TextEncoder();
 
@@ -166,7 +178,7 @@ export async function POST(req: NextRequest) {
               messages: [
                 {
                   role: "system",
-                  content: `Tu es un expert en marketing de contenu. ${getPrompt(platform, tone || "professionnel")}${voiceInstruction ? `\n\n${voiceInstruction}` : ""}`,
+                  content: `Tu es un expert en marketing de contenu. ${getPrompt(platform, tone || "professionnel")}${voiceInstruction ? `\n\n${voiceInstruction}` : ""}${performanceByPlatform[platform] ? `\n\n${performanceByPlatform[platform]}` : ""}`,
                 },
                 {
                   role: "user",

@@ -54,12 +54,14 @@ export async function GET(req: NextRequest) {
     }
 
     try {
+      let externalId = "";
       if (post.platform === "linkedin") {
         if (account.expiresAt && account.expiresAt < new Date()) {
           throw new Error("LinkedIn non connecté ou session expirée");
         }
         const accessToken = decrypt(account.accessTokenEnc);
-        await publishToLinkedIn(accessToken, account.externalId, post.content);
+        const result = await publishToLinkedIn(accessToken, account.externalId, post.content);
+        externalId = result.id;
       } else if (post.platform === "twitter") {
         let accessToken = decrypt(account.accessTokenEnc);
 
@@ -79,12 +81,18 @@ export async function GET(req: NextRequest) {
           });
         }
 
-        await publishToTwitter(accessToken, post.content);
+        const result = await publishToTwitter(accessToken, post.content);
+        externalId = result.id;
       }
 
       await prisma.scheduledPost.update({
         where: { id: post.id },
-        data: { status: "published", publishedAt: new Date(), error: null },
+        data: {
+          status: "published",
+          publishedAt: new Date(),
+          error: null,
+          externalId: externalId || null,
+        },
       });
       published++;
     } catch (err) {
