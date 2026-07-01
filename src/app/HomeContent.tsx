@@ -365,6 +365,11 @@ export default function HomeContent() {
                         <span className="text-sm text-muted">/mois</span>
                       )}
                     </div>
+                    {plan.price > 0 && (
+                      <div className="text-xs text-success mt-1.5">
+                        ou {plan.yearlyPrice}€/an — 2 mois offerts
+                      </div>
+                    )}
                   </div>
 
                   <ul className="space-y-2.5 mb-8 flex-1">

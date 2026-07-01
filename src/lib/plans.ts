@@ -8,6 +8,8 @@ export interface PlanConfig {
   name: string;
   /** Monthly price in euros (0 = free). */
   price: number;
+  /** Yearly price in euros, billed once (0 = free). ~2 months off the monthly rate. */
+  yearlyPrice: number;
   /** Monthly generation quota. null = unlimited. */
   genQuota: number | null;
   /** How many brand voices the plan can store. 0 = feature locked. */
@@ -23,6 +25,7 @@ export const PLANS: Record<Plan, PlanConfig> = {
     id: "free",
     name: "Free",
     price: 0,
+    yearlyPrice: 0,
     genQuota: 5,
     brandVoices: 0,
     autoPublish: false,
@@ -32,6 +35,7 @@ export const PLANS: Record<Plan, PlanConfig> = {
     id: "creator",
     name: "Creator",
     price: 29,
+    yearlyPrice: 290,
     genQuota: null,
     brandVoices: 1,
     autoPublish: true,
@@ -41,6 +45,7 @@ export const PLANS: Record<Plan, PlanConfig> = {
     id: "pro",
     name: "Pro",
     price: 79,
+    yearlyPrice: 790,
     genQuota: null,
     brandVoices: 3,
     autoPublish: true,
@@ -50,6 +55,7 @@ export const PLANS: Record<Plan, PlanConfig> = {
     id: "agency",
     name: "Agency",
     price: 199,
+    yearlyPrice: 1990,
     genQuota: null,
     brandVoices: 10,
     autoPublish: true,
@@ -71,21 +77,34 @@ export function isPaid(plan: string | null | undefined): boolean {
 /** Paid plans that map to a real Stripe subscription price. */
 export type PaidPlan = "creator" | "pro" | "agency";
 
-/** Env var names holding each plan's Stripe Price ID. */
+export type BillingInterval = "month" | "year";
+
+/** Env var names holding each plan's Stripe Price ID (monthly billing). */
 export const PLAN_PRICE_ENV: Record<PaidPlan, string> = {
   creator: "STRIPE_PRICE_CREATOR",
   pro: "STRIPE_PRICE_PRO",
   agency: "STRIPE_PRICE_AGENCY",
 };
 
-/** Read the Stripe Price ID configured for a paid plan, if any. */
-export function getPriceId(plan: PaidPlan): string | null {
-  return process.env[PLAN_PRICE_ENV[plan]] || null;
+/** Env var names holding each plan's Stripe Price ID (yearly billing). */
+export const PLAN_PRICE_ENV_YEARLY: Record<PaidPlan, string> = {
+  creator: "STRIPE_PRICE_CREATOR_YEARLY",
+  pro: "STRIPE_PRICE_PRO_YEARLY",
+  agency: "STRIPE_PRICE_AGENCY_YEARLY",
+};
+
+/** Read the Stripe Price ID configured for a paid plan + billing interval, if any. */
+export function getPriceId(plan: PaidPlan, interval: BillingInterval = "month"): string | null {
+  const envVar = interval === "year" ? PLAN_PRICE_ENV_YEARLY[plan] : PLAN_PRICE_ENV[plan];
+  return process.env[envVar] || null;
 }
 
-/** Reverse-lookup: map a Stripe Price ID back to one of our paid plans. */
+/** Reverse-lookup: map a Stripe Price ID back to one of our paid plans (monthly or yearly). */
 export function getPlanFromPriceId(priceId: string): PaidPlan | null {
   for (const [plan, envVar] of Object.entries(PLAN_PRICE_ENV)) {
+    if (process.env[envVar] === priceId) return plan as PaidPlan;
+  }
+  for (const [plan, envVar] of Object.entries(PLAN_PRICE_ENV_YEARLY)) {
     if (process.env[envVar] === priceId) return plan as PaidPlan;
   }
   return null;
