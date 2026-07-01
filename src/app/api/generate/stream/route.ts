@@ -2,11 +2,12 @@ import { NextRequest } from "next/server";
 
 import prisma from "@/lib/prisma";
 import { getOpenAI } from "@/lib/openai";
-import { getUserId } from "@/lib/auth";
+import { getUserId, getUserEmail } from "@/lib/auth";
 import { getPlan } from "@/lib/plans";
 import { buildVoiceInstruction } from "@/lib/brand-voice";
 import { buildPerformanceInstruction } from "@/lib/performance";
 import { applyWatermark } from "@/lib/watermark";
+import { sendQuotaWarningEmail } from "@/lib/email";
 
 export const runtime = "nodejs";
 
@@ -104,9 +105,10 @@ export async function POST(req: NextRequest) {
       if (user.generationMonth !== currentMonth) {
         await prisma.user.update({
           where: { id: user.id },
-          data: { generationCount: 0, generationMonth: currentMonth },
+          data: { generationCount: 0, generationMonth: currentMonth, quotaWarningEmailSentAt: null },
         });
         user.generationCount = 0;
+        user.quotaWarningEmailSentAt = null;
       }
 
       if (user.generationCount >= plan.genQuota) {
@@ -252,10 +254,18 @@ export async function POST(req: NextRequest) {
 
           // Increment generation count for quota-limited plans
           if (plan.genQuota !== null) {
+            const newCount = user!.generationCount + 1;
             await prisma.user.update({
               where: { id: user!.id },
               data: { generationCount: { increment: 1 } },
             });
+
+            // 80% quota warning email (once per month)
+            if (!user!.quotaWarningEmailSentAt && newCount >= Math.ceil(plan.genQuota * 0.8)) {
+              await prisma.user.update({ where: { id: user!.id }, data: { quotaWarningEmailSentAt: new Date() } });
+              const email = await getUserEmail(user!.clerkId, user!.email);
+              if (email) await sendQuotaWarningEmail(email, newCount, plan.genQuota);
+            }
           }
         } catch (err) {
           const message =

@@ -17,6 +17,10 @@ model User {
   generationMonth  String   @default("")
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
+  // Lifecycle email dedup — each set once the corresponding email has been sent.
+  activationEmailSentAt    DateTime?
+  quotaWarningEmailSentAt  DateTime?
+  lastDigestEmailAt        DateTime?
   projects         ContentProject[]
   scheduledPosts   ScheduledPost[]
   brandVoices      BrandVoice[]
