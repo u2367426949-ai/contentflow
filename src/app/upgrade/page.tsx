@@ -12,7 +12,7 @@ import {
   Loader2,
   Fingerprint,
 } from "lucide-react";
-import { PLANS, type PaidPlan } from "@/lib/plans";
+import { PLANS, type BillingInterval, type PaidPlan } from "@/lib/plans";
 
 interface Tier {
   id: PaidPlan;
@@ -63,6 +63,7 @@ export default function UpgradePage() {
   const { getToken } = useAuth();
   const [loadingPlan, setLoadingPlan] = useState<PaidPlan | null>(null);
   const [currentPlan, setCurrentPlan] = useState<string>("free");
+  const [interval, setInterval] = useState<BillingInterval>("month");
 
   useEffect(() => {
     if (!isSignedIn) return;
@@ -89,7 +90,7 @@ export default function UpgradePage() {
           "Content-Type": "application/json",
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify({ plan }),
+        body: JSON.stringify({ plan, interval }),
       });
       const data = await res.json();
       if (data.url) {
@@ -120,7 +121,7 @@ export default function UpgradePage() {
         <div className="text-center mb-14">
           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-accent/10 border border-accent/20 text-accent text-sm mb-6">
             <Fingerprint className="w-3.5 h-3.5" />
-            <span>Le cerveau éditorial qui apprend votre style</span>
+            <span>Il écrit comme vous. Il publie pour vous. Il apprend de vos stats.</span>
           </div>
           <h1 className="text-3xl md:text-5xl font-bold text-foreground mb-4 tracking-tight">
             Choisissez votre plan
@@ -129,6 +130,33 @@ export default function UpgradePage() {
             Clonez votre style, publiez automatiquement sur LinkedIn et analysez
             vos performances. Sans engagement, annulez à tout moment.
           </p>
+
+          {/* Billing interval toggle */}
+          <div className="inline-flex items-center gap-1 mt-8 p-1 rounded-xl bg-surface border border-border">
+            <button
+              onClick={() => setInterval("month")}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                interval === "month"
+                  ? "bg-card text-foreground shadow-sm"
+                  : "text-muted hover:text-foreground"
+              }`}
+            >
+              Mensuel
+            </button>
+            <button
+              onClick={() => setInterval("year")}
+              className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                interval === "year"
+                  ? "bg-card text-foreground shadow-sm"
+                  : "text-muted hover:text-foreground"
+              }`}
+            >
+              Annuel
+              <span className="px-1.5 py-0.5 rounded-md bg-success/15 text-success text-[11px] font-semibold">
+                2 mois offerts
+              </span>
+            </button>
+          </div>
         </div>
 
         {/* Pricing Cards */}
@@ -157,10 +185,15 @@ export default function UpgradePage() {
                   </div>
                   <div className="flex items-baseline justify-center gap-1">
                     <span className="text-4xl font-bold text-foreground">
-                      {config.price} €
+                      {interval === "year" ? Math.round(config.yearlyPrice / 12) : config.price} €
                     </span>
                     <span className="text-muted">/mois</span>
                   </div>
+                  {interval === "year" && (
+                    <p className="text-xs text-success mt-1">
+                      {config.yearlyPrice} €/an, facturé annuellement
+                    </p>
+                  )}
                   <p className="text-xs text-muted mt-2">{tier.tagline}</p>
                 </div>
 
@@ -212,7 +245,8 @@ export default function UpgradePage() {
           <div className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-surface border border-border/50 text-sm text-muted">
             <Sparkles className="w-4 h-4 text-accent" />
             Plan Free : {PLANS.free.genQuota} générations/mois, publication
-            manuelle, sans style d&apos;écriture.
+            manuelle, sans style d&apos;écriture, posts signés « Généré avec
+            ContentFlow AI ».
           </div>
         </div>
 
@@ -220,8 +254,9 @@ export default function UpgradePage() {
         <div className="mt-16 text-center">
           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-accent/5 text-accent text-xs font-medium">
             <Crown className="w-3.5 h-3.5" />
-            Taplio et AuthoredUp sont à 65€/mois, LinkedIn uniquement. Creator
-            démarre à 29€, multi-plateforme + clonage de style.
+            Taplio et AuthoredUp sont à 65€/mois, LinkedIn uniquement, sans
+            apprentissage. Creator démarre à 29€, multi-plateforme + clonage
+            de style — et Pro apprend de vos performances réelles.
           </div>
         </div>
       </div>

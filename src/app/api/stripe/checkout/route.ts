@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getUserId } from "@/lib/auth";
-import { getPriceId, type PaidPlan } from "@/lib/plans";
+import { getPriceId, type BillingInterval, type PaidPlan } from "@/lib/plans";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://contentflow-ai-node-ia.vercel.app";
 const VALID_PLANS: PaidPlan[] = ["creator", "pro", "agency"];
@@ -12,19 +12,23 @@ export async function POST(req: NextRequest) {
   }
 
   let plan: PaidPlan = "creator";
+  let interval: BillingInterval = "month";
   try {
     const body = await req.json();
     if (VALID_PLANS.includes(body?.plan)) {
       plan = body.plan;
     }
+    if (body?.interval === "year") {
+      interval = "year";
+    }
   } catch {
-    // No body provided — default to Creator.
+    // No body provided — default to Creator, monthly.
   }
 
-  const priceId = getPriceId(plan);
+  const priceId = getPriceId(plan, interval);
   if (!priceId) {
     return NextResponse.json(
-      { error: `Le plan ${plan} n'est pas configuré (price ID manquant).` },
+      { error: `Le plan ${plan} (${interval === "year" ? "annuel" : "mensuel"}) n'est pas configuré (price ID manquant).` },
       { status: 500 }
     );
   }

@@ -5,6 +5,8 @@ import { getOpenAI } from "@/lib/openai";
 import { getUserId } from "@/lib/auth";
 import { getPlan } from "@/lib/plans";
 import { buildVoiceInstruction } from "@/lib/brand-voice";
+import { buildPerformanceInstruction } from "@/lib/performance";
+import { applyWatermark } from "@/lib/watermark";
 
 export const runtime = "nodejs";
 
@@ -135,6 +137,17 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // ── Performance loop (Pro/Agency): lean into what already performs ──
+    const performanceByPlatform: Record<string, string> = {};
+    if (plan.analytics) {
+      const insights = await prisma.performanceInsight.findMany({
+        where: { userId: user.id },
+      });
+      for (const i of insights) {
+        performanceByPlatform[i.platform] = buildPerformanceInstruction(i.insight, i.platform);
+      }
+    }
+
     const openai = getOpenAI();
     const encoder = new TextEncoder();
 
@@ -166,7 +179,7 @@ export async function POST(req: NextRequest) {
               messages: [
                 {
                   role: "system",
-                  content: `Tu es un expert en marketing de contenu. ${getPrompt(platform, tone || "professionnel")}${voiceInstruction ? `\n\n${voiceInstruction}` : ""}`,
+                  content: `Tu es un expert en marketing de contenu. ${getPrompt(platform, tone || "professionnel")}${voiceInstruction ? `\n\n${voiceInstruction}` : ""}${performanceByPlatform[platform] ? `\n\n${performanceByPlatform[platform]}` : ""}`,
                 },
                 {
                   role: "user",
@@ -191,6 +204,21 @@ export async function POST(req: NextRequest) {
               }
             }
 
+            let finalContent = fullContent.trim();
+            if (finalContent && plan.id === "free") {
+              finalContent = applyWatermark(platform, finalContent);
+              const suffix = finalContent.startsWith(fullContent.trim())
+                ? finalContent.slice(fullContent.trim().length)
+                : "";
+              if (suffix) {
+                controller.enqueue(
+                  encoder.encode(
+                    `data: ${JSON.stringify({ type: "chunk", platform, content: suffix })}\n\n`
+                  )
+                );
+              }
+            }
+
             // Save to DB immediately
             const genRecord = await prisma.generation.findFirst({
               where: {
@@ -198,11 +226,11 @@ export async function POST(req: NextRequest) {
                 platform,
               },
             });
-            if (genRecord && fullContent.trim()) {
+            if (genRecord && finalContent) {
               await prisma.generation.update({
                 where: { id: genRecord.id },
                 data: {
-                  content: fullContent.trim(),
+                  content: finalContent,
                   status: "completed",
                   brandVoiceId: resolvedVoiceId,
                 },

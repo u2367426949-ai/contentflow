@@ -39,8 +39,8 @@ const FEATURES = [
   },
   {
     icon: <TrendingUp className="w-5 h-5" />,
-    title: "Optimisé pour l'engagement",
-    desc: "Tons professionnels, hashtags pertinents, questions d'accroche : conçu pour performer.",
+    title: "Apprend de vos performances",
+    desc: "L'IA analyse vos stats d'engagement réelles et réinjecte ce qui marche dans vos prochains posts. Personne d'autre ne fait ça.",
   },
   {
     icon: <Shield className="w-5 h-5" />,
@@ -100,7 +100,7 @@ const PRICING_DETAILS: Record<Plan, { cta: string; href: string; featured?: bool
     featured: true,
     features: [
       "Tout Creator, plus :",
-      "Analytics multi-plateforme",
+      "Boucle de performance IA (vos stats → vos posts)",
       "3 voix de marque",
     ],
   },
@@ -365,6 +365,11 @@ export default function HomeContent() {
                         <span className="text-sm text-muted">/mois</span>
                       )}
                     </div>
+                    {plan.price > 0 && (
+                      <div className="text-xs text-success mt-1.5">
+                        ou {plan.yearlyPrice}€/an — 2 mois offerts
+                      </div>
+                    )}
                   </div>
 
                   <ul className="space-y-2.5 mb-8 flex-1">
@@ -435,7 +440,7 @@ export default function HomeContent() {
       {/* ─── Footer ─── */}
       <footer className="border-t border-border py-12 px-4">
         <div className="max-w-7xl mx-auto">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-10">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-8 mb-10">
             <div>
               <div className="flex items-center gap-2 mb-4">
                 <div
@@ -459,6 +464,15 @@ export default function HomeContent() {
                 <Link href="/dashboard" className="block text-xs text-muted hover:text-foreground transition-colors">Dashboard</Link>
                 <Link href="/sign-up" className="block text-xs text-muted hover:text-foreground transition-colors">S&apos;inscrire</Link>
                 <Link href="/upgrade" className="block text-xs text-muted hover:text-foreground transition-colors">Tarifs</Link>
+              </div>
+            </div>
+
+            <div>
+              <h4 className="text-xs font-bold text-foreground uppercase tracking-wider mb-4">Outils</h4>
+              <div className="space-y-2">
+                <Link href="/outils/generateur-post-linkedin" className="block text-xs text-muted hover:text-foreground transition-colors">Générateur post LinkedIn</Link>
+                <Link href="/outils/generateur-post-twitter" className="block text-xs text-muted hover:text-foreground transition-colors">Générateur post X</Link>
+                <Link href="/alternatives/taplio" className="block text-xs text-muted hover:text-foreground transition-colors">Alternative à Taplio</Link>
               </div>
             </div>
 

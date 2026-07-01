@@ -9,6 +9,7 @@ const ALL_LINKS = [
   { href: "/dashboard", label: "Dashboard", requireAuth: true },
   { href: "/dashboard/brand-voices", label: "Style", requireAuth: true },
   { href: "/dashboard/schedule", label: "Planning", requireAuth: true },
+  { href: "/dashboard/analytics", label: "Performance", requireAuth: true },
 ];
 
 export function NavLinks() {

@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { ScheduleModal } from "@/components/ScheduleModal";
+import { QuotaPaywallModal } from "@/components/QuotaPaywallModal";
 
 const linkedinIcon = (
   <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
@@ -97,9 +98,11 @@ export default function ProjectDetailPage() {
   const [error, setError] = useState("");
   const [tone, setTone] = useState("professionnel");
   const [isPro, setIsPro] = useState(false);
+  const [plan, setPlan] = useState<string>("free");
   const [voices, setVoices] = useState<BrandVoice[]>([]);
   const [brandVoiceId, setBrandVoiceId] = useState<string>("");
   const [scheduleModal, setScheduleModal] = useState<{ open: boolean; platform: string; content: string }>({ open: false, platform: "", content: "" });
+  const [quotaModal, setQuotaModal] = useState<{ open: boolean; used: number; limit: number }>({ open: false, used: 0, limit: 0 });
 
   useEffect(() => {
     if (isLoaded && !isSignedIn) {
@@ -118,6 +121,7 @@ export default function ProjectDetailPage() {
       const res = await fetch("/api/user/me");
       const data = await res.json();
       setIsPro(data.plan && data.plan !== "free");
+      setPlan(data.plan || "free");
     } catch { /* ignore */ }
   }
 
@@ -173,6 +177,10 @@ export default function ProjectDetailPage() {
 
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
+        if (res.status === 402 && errData.quota) {
+          setQuotaModal({ open: true, used: errData.quota.used, limit: errData.quota.limit });
+          return;
+        }
         throw new Error(errData.error || "Erreur lors de la génération");
       }
 
@@ -540,8 +548,32 @@ export default function ProjectDetailPage() {
             </div>
           </div>
         )}
+
+        {/* Upsell: performance loop (Creator → Pro) */}
+        {plan === "creator" && hasAnyCompleted && (
+          <Link
+            href="/dashboard/analytics"
+            className="mt-6 flex items-center gap-3 p-4 bg-accent/5 border border-accent/20 rounded-xl hover:bg-accent/10 transition-colors group"
+          >
+            <span className="text-lg shrink-0">💡</span>
+            <p className="text-sm text-muted flex-1">
+              Avec <span className="text-foreground font-medium">Pro</span>, ce
+              post serait optimisé par tes stats réelles — l&apos;IA apprend ce
+              qui marche pour toi.
+            </p>
+            <span className="text-xs font-medium text-accent group-hover:text-accent-hover transition-colors whitespace-nowrap">
+              Découvrir →
+            </span>
+          </Link>
+        )}
       </div>
       <ScheduleModal isOpen={scheduleModal.open} onClose={() => setScheduleModal({ open: false, platform: "", content: "" })} onSchedule={handleSchedule} platform={scheduleModal.platform} contentPreview={scheduleModal.content} />
+      <QuotaPaywallModal
+        isOpen={quotaModal.open}
+        onClose={() => setQuotaModal({ open: false, used: 0, limit: 0 })}
+        used={quotaModal.used}
+        limit={quotaModal.limit}
+      />
     </div>
   );
 }
