@@ -121,7 +121,7 @@ export default function UpgradePage() {
         <div className="text-center mb-14">
           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-accent/10 border border-accent/20 text-accent text-sm mb-6">
             <Fingerprint className="w-3.5 h-3.5" />
-            <span>Le cerveau éditorial qui apprend votre style</span>
+            <span>Il écrit comme vous. Il publie pour vous. Il apprend de vos stats.</span>
           </div>
           <h1 className="text-3xl md:text-5xl font-bold text-foreground mb-4 tracking-tight">
             Choisissez votre plan
@@ -253,8 +253,9 @@ export default function UpgradePage() {
         <div className="mt-16 text-center">
           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-accent/5 text-accent text-xs font-medium">
             <Crown className="w-3.5 h-3.5" />
-            Taplio et AuthoredUp sont à 65€/mois, LinkedIn uniquement. Creator
-            démarre à 29€, multi-plateforme + clonage de style.
+            Taplio et AuthoredUp sont à 65€/mois, LinkedIn uniquement, sans
+            apprentissage. Creator démarre à 29€, multi-plateforme + clonage
+            de style — et Pro apprend de vos performances réelles.
           </div>
         </div>
       </div>

@@ -39,8 +39,8 @@ const FEATURES = [
   },
   {
     icon: <TrendingUp className="w-5 h-5" />,
-    title: "Optimisé pour l'engagement",
-    desc: "Tons professionnels, hashtags pertinents, questions d'accroche : conçu pour performer.",
+    title: "Apprend de vos performances",
+    desc: "L'IA analyse vos stats d'engagement réelles et réinjecte ce qui marche dans vos prochains posts. Personne d'autre ne fait ça.",
   },
   {
     icon: <Shield className="w-5 h-5" />,
@@ -100,7 +100,7 @@ const PRICING_DETAILS: Record<Plan, { cta: string; href: string; featured?: bool
     featured: true,
     features: [
       "Tout Creator, plus :",
-      "Analytics multi-plateforme",
+      "Boucle de performance IA (vos stats → vos posts)",
       "3 voix de marque",
     ],
   },
