@@ -4,6 +4,8 @@ import { getPlan } from "@/lib/plans";
 import { decrypt, encrypt } from "@/lib/crypto";
 import { publishToLinkedIn } from "@/lib/linkedin";
 import { publishToTwitter, refreshTwitterToken } from "@/lib/twitter";
+import { getUserEmail } from "@/lib/auth";
+import { sendPublishFailureEmail } from "@/lib/email";
 
 export async function GET(req: NextRequest) {
   const cronSecret = process.env.CRON_SECRET;
@@ -31,24 +33,42 @@ export async function GET(req: NextRequest) {
 
   let published = 0;
   let failed = 0;
+  const failuresByUser = new Map<
+    string,
+    { clerkId: string; email: string | null; failures: { platform: string; error: string }[] }
+  >();
+
+  function recordFailure(post: (typeof due)[number], error: string) {
+    const entry = failuresByUser.get(post.userId) || {
+      clerkId: post.user.clerkId,
+      email: post.user.email,
+      failures: [],
+    };
+    entry.failures.push({ platform: post.platform, error });
+    failuresByUser.set(post.userId, entry);
+  }
 
   for (const post of due) {
     const account = post.user.socialAccounts.find((a) => a.platform === post.platform);
 
     if (!getPlan(post.user.plan).autoPublish) {
+      const error = "Publication automatique non disponible sur votre plan";
       await prisma.scheduledPost.update({
         where: { id: post.id },
-        data: { status: "failed", error: "Publication automatique non disponible sur votre plan" },
+        data: { status: "failed", error },
       });
+      recordFailure(post, error);
       failed++;
       continue;
     }
 
     if (!account) {
+      const error = "Compte non connecté ou session expirée";
       await prisma.scheduledPost.update({
         where: { id: post.id },
-        data: { status: "failed", error: "Compte non connecté ou session expirée" },
+        data: { status: "failed", error },
       });
+      recordFailure(post, error);
       failed++;
       continue;
     }
@@ -97,12 +117,20 @@ export async function GET(req: NextRequest) {
       published++;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
+      const error = message.slice(0, 500);
       await prisma.scheduledPost.update({
         where: { id: post.id },
-        data: { status: "failed", error: message.slice(0, 500) },
+        data: { status: "failed", error },
       });
+      recordFailure(post, error);
       failed++;
     }
+  }
+
+  // ── One summary email per user with failures (not one per post) ──
+  for (const { clerkId, email: cachedEmail, failures } of failuresByUser.values()) {
+    const email = await getUserEmail(clerkId, cachedEmail);
+    if (email) await sendPublishFailureEmail(email, failures);
   }
 
   return NextResponse.json({ processed: due.length, published, failed });
