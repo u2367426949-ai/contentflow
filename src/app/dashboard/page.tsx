@@ -67,6 +67,39 @@ interface Project {
   generations: { platform: string; status: string }[];
 }
 
+function QuotaBar({ plan, generationCount }: { plan: string; generationCount: number }) {
+  const config = getPlan(plan);
+  if (config.genQuota === null) return null;
+
+  const used = Math.min(generationCount, config.genQuota);
+  const pct = Math.round((used / config.genQuota) * 100);
+  const nearLimit = used >= config.genQuota - 1;
+
+  return (
+    <div className="mb-8 p-4 bg-card border border-border/50 rounded-xl">
+      <div className="flex items-center justify-between gap-3 mb-2">
+        <span className="text-sm text-muted">
+          {used}/{config.genQuota} générations utilisées ce mois-ci
+        </span>
+        {nearLimit && (
+          <Link
+            href="/upgrade"
+            className="text-xs font-medium text-accent hover:text-accent-hover transition-colors whitespace-nowrap"
+          >
+            Passer à Creator →
+          </Link>
+        )}
+      </div>
+      <div className="h-1.5 rounded-full bg-surface overflow-hidden">
+        <div
+          className={`h-full rounded-full transition-all ${nearLimit ? "bg-error" : "bg-accent"}`}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
 export default function DashboardPage() {
   const router = useRouter();
   const { isLoaded, isSignedIn } = useUser();
@@ -240,6 +273,8 @@ export default function DashboardPage() {
             quelle source en posts.
           </p>
         </div>
+
+        {quota && <QuotaBar plan={quota.plan} generationCount={quota.generationCount} />}
 
         {/* Multi-source input */}
         <div className="mb-12">
